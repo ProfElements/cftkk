@@ -1,5 +1,5 @@
-use cftkk::{fetm::Fetm, gcp::Gcp};
-use std::{env, fs, path::PathBuf};
+use cftkk::{fetm::Fetm, gcp::GcpReader};
+use std::{env, fs};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -8,21 +8,15 @@ fn main() {
     }
 
     let data = fs::read(&args[1]).unwrap();
-    let gcp = Gcp::new(data).unwrap();
+    let gcp = GcpReader::new(data).unwrap();
 
-    let mut path = PathBuf::from(&args[1]);
-    path.set_extension("");
-
-    //std::fs::create_dir(&path).unwrap();
-    for files in gcp.get_files() {
-        if files.name.contains(".fetm") {
-            let fetm = Fetm::new(files.data).unwrap();
+    for resource in gcp.resource_entries() {
+        if resource.name.contains(".fetm") {
+            let fetm = Fetm::new(resource.data).unwrap();
 
             for token in fetm.collect_tokens() {
                 println!("{:?}", token);
             }
         }
-
-        //std::fs::write(path.join(files.name), files.data).unwrap();
     }
 }

@@ -1,5 +1,5 @@
-use cftkk::gcp::Gcp;
-use std::{env, fs, path::PathBuf};
+use cftkk::gcp::GcpReader;
+use std::{env, path::PathBuf};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -14,15 +14,20 @@ fn main() {
                     continue;
                 }
 
-                println!("{}", entry.path().display());
+                //println!("{}", entry.path().display());
 
                 if entry.path().extension().unwrap() == "gcp" {
-                    let gcp = Gcp::new(std::fs::read(entry.path()).unwrap()).unwrap();
-                    let mut path = PathBuf::from(entry.path());
-                    path.set_extension("");
-                    std::fs::create_dir(&path).unwrap();
-                    for file in gcp.get_files() {
-                        std::fs::write(path.join(file.name), file.data).unwrap();
+                    if let Ok(gcp) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
+                        let mut path = PathBuf::from(entry.path());
+                        path.set_extension("");
+                        std::fs::create_dir(&path).unwrap();
+                        for file in gcp.resource_entries() {
+                            std::fs::write(path.join(file.name), file.data).unwrap();
+                        }
+                    } else {
+                        if let Err(err) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
+                            println!("name: {}, {:?}", entry.path().display(), err);
+                        }
                     }
                 }
             }
