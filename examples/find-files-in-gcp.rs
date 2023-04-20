@@ -1,4 +1,4 @@
-use cftkk::{fetm::Fetm, gcp::GcpReader};
+use cftkk::{fetm::FetmReader, gcp::GcpReader};
 use std::{env, fs};
 
 fn main() {
@@ -12,9 +12,9 @@ fn main() {
 
     for resource in gcp.resource_entries() {
         if resource.name.contains(".fetm") {
-            let fetm = Fetm::new(resource.data).unwrap();
+            let fetm = FetmReader::new(resource.data).unwrap();
 
-            for token in fetm.collect_tokens() {
+            for token in fetm.tokens() {
                 println!("{:?}", token);
             }
         }

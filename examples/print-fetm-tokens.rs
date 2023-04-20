@@ -1,4 +1,4 @@
-use cftkk::fetm::Fetm;
+use cftkk::fetm::FetmReader;
 use std::{env, fs};
 
 fn main() {
@@ -8,10 +8,9 @@ fn main() {
     }
 
     let data = fs::read(&args[1]).unwrap();
-    let fetm = Fetm::new(data).unwrap();
+    let fetm = FetmReader::new(&data).unwrap();
 
-    let tokens = fetm.collect_tokens();
-    for token in &tokens {
+    for token in fetm.tokens() {
         println!("{:?}", token);
     }
 }
