@@ -106,6 +106,7 @@ pub struct ResourceEntry<'a> {
     pub data: &'a [u8],
     pub tag: Tag,
     pub is_local: bool,
+    pub crc: u32,
 }
 
 pub struct GcpReader<Data: AsRef<[u8]>> {
@@ -288,7 +289,7 @@ impl<Data: AsRef<[u8]>> GcpReader<Data> {
                 name: resource_name,
                 data: &self.input.as_ref()
                     [data_offset..data_offset + usize::try_from(info.file_size).unwrap()],
-
+                crc: info.crc,
                 tag,
                 is_local: info.is_local,
             }

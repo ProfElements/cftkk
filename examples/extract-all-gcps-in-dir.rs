@@ -22,7 +22,7 @@ fn main() {
                         path.set_extension("");
                         std::fs::create_dir(&path).unwrap();
                         for file in gcp.resource_entries() {
-                            std::fs::write(path.join(file.name), file.data).unwrap();
+                            let _ = std::fs::write(path.join(file.name), file.data);
                         }
                     } else {
                         if let Err(err) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
