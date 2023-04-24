@@ -1,5 +1,5 @@
 use crate::ParseError;
-use std::iter::from_fn;
+use core::iter::from_fn;
 
 #[derive(Debug)]
 pub enum TkKind<'a> {

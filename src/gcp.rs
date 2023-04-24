@@ -28,15 +28,6 @@ pub enum Tag {
 
 impl Tag {
     pub const LENGTH: usize = 4;
-    pub fn from_str(tag: &str) -> Option<Tag> {
-        match tag {
-            "SPLA" => Some(Tag::Splash),
-            _ => {
-                println!("{tag}");
-                return None;
-            }
-        }
-    }
 
     pub fn from_bytes(data: &[u8; Tag::LENGTH]) -> Self {
         match data {

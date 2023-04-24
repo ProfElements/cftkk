@@ -1,4 +1,8 @@
-use cftkk::{fetm::FetmReader, gcp::GcpReader};
+use cftkk::{
+    fetm::FetmReader,
+    gcp::{GcpReader, Tag},
+    texr::TexrReader,
+};
 use std::{env, fs};
 
 fn main() {
@@ -17,6 +21,18 @@ fn main() {
             for token in fetm.tokens() {
                 println!("{:?}", token);
             }
+        }
+        if resource.tag == Tag::Texture && !resource.name.contains(".sys") {
+            println!("{}", resource.name);
+            let texr = TexrReader::new(resource.data).unwrap();
+
+            println!(
+                "Width: {}, Height: {}, Data length: {}. format: {:?}",
+                texr.header().width,
+                texr.header().height,
+                texr.image_data().len(),
+                texr.header().texr_format
+            );
         }
     }
 }
