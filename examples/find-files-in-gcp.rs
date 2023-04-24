@@ -23,16 +23,19 @@ fn main() {
             }
         }
         if resource.tag == Tag::Texture && !resource.name.contains(".sys") {
-            println!("{}", resource.name);
             let texr = TexrReader::new(resource.data).unwrap();
 
             println!(
-                "Width: {}, Height: {}, Data length: {}. format: {:?}",
+                "Name: {}, Width: {}, Height: {}, Data length: {}. format: {:?}",
+                resource.name,
                 texr.header().width,
                 texr.header().height,
                 texr.image_data().len(),
                 texr.header().texr_format
             );
+        }
+        if resource.tag != Tag::Texture && !resource.name.contains(".fetm") {
+            println!("{}, {:?}", resource.name, resource.tag);
         }
     }
 }

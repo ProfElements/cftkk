@@ -1,6 +1,6 @@
 use crate::ParseError;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Tag {
     Splash,
     Texture,
