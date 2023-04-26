@@ -1,5 +1,3 @@
-use std::println;
-
 use crate::ParseError;
 
 pub struct TexrReader<Data: AsRef<[u8]>> {

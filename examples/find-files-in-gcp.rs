@@ -1,9 +1,13 @@
 use cftkk::{
+    cmes::CMesReader,
     fetm::FetmReader,
     gcp::{GcpReader, Tag},
     texr::TexrReader,
 };
-use std::{env, fs};
+use std::{
+    env,
+    fs::{self, write},
+};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -34,8 +38,47 @@ fn main() {
                 texr.header().texr_format
             );
         }
-        if resource.tag != Tag::Texture && !resource.name.contains(".fetm") {
-            println!("{}, {:?}", resource.name, resource.tag);
+        if resource.tag == Tag::CollisionMesh {
+            let cmes = CMesReader::new(resource.data).unwrap();
+
+            println!(
+                "Name: {}, Vertex Count: {}, Normal Count: {}, Triangle Count: {}",
+                resource.name,
+                cmes.header().vertices_count,
+                cmes.header().normal_count,
+                cmes.header().triangle_count
+            );
+
+            let mut string = String::new();
+
+            string.push_str(format!("o {}\n", resource.name).as_str());
+
+            for vertex in cmes.vertices().unwrap() {
+                string.push_str(format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str());
+            }
+
+            for normal in cmes.normals().unwrap() {
+                string.push_str(format!("vn {} {} {}\n", normal.x, normal.y, normal.z).as_str());
+            }
+
+            string.push_str("s 0\n");
+
+            for triangle in cmes.triangles().unwrap() {
+                string.push_str(
+                    format!(
+                        "f {}//{} {}//{} {}//{}\n",
+                        triangle.x_idx + 1,
+                        triangle.normal_idx + 1,
+                        triangle.y_idx + 1,
+                        triangle.normal_idx + 1,
+                        triangle.z_idx + 1,
+                        triangle.normal_idx + 1
+                    )
+                    .as_str(),
+                );
+            }
+
+            let _ = write(format!("{}.obj", resource.name), string);
         }
     }
 }
