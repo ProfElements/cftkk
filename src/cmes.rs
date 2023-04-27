@@ -292,13 +292,6 @@ impl Header {
             triangle_count: u32::from_be_bytes(input[0x88..0x8C].try_into().unwrap()),
         };
 
-        header.vertices_count = (header.normal_maybe_offset - header.vertices_offset)
-            / u32::try_from(Vertex::LENGTH).unwrap();
-        header.normal_count = (header.triangle_offset - header.normal_maybe_offset)
-            / u32::try_from(Normal::LENGTH).unwrap();
-        header.triangle_count = (header.node_offset - header.triangle_offset)
-            / u32::try_from(Triangle::LENGTH).unwrap();
-
         if header.vertices_offset == 0 {
             return Err(ParseError::ZeroOffset);
         }
