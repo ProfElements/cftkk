@@ -3,9 +3,9 @@ name = "cftkk"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-
 [dev-dependencies]
 serde_json = "1.0"
+gctex = "0.1.1"
+png = "0.17.9"
+
+[dependencies]
