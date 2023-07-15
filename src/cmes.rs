@@ -34,8 +34,6 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
             Header::from_bytes(header_data.try_into().unwrap())?
         };
 
-        println!("HEADER OKAY");
-
         let verticies_end_offset = header
             .vertices_offset
             .checked_add(
@@ -51,8 +49,6 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
         {
             return Err(ParseError::UnexpectedEnd);
         }
-
-        println!("VERTICES OKAY");
 
         let normal_end_offset = header
             .normal_maybe_offset
@@ -70,8 +66,6 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
             return Err(ParseError::UnexpectedEnd);
         }
 
-        println!("NORMALS OKAY");
-
         let triangle_end_offset = header
             .triangle_offset
             .checked_add(
@@ -88,8 +82,6 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
             return Err(ParseError::UnexpectedEnd);
         }
 
-        println!("TRIANGLES OKAY");
-
         let node_end_offset = header
             .node_offset
             .checked_add(
@@ -105,8 +97,6 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
         {
             return Err(ParseError::UnexpectedEnd);
         }
-
-        println!("NODES OKAY");
 
         if header.next_mesh_offset != 0 {
             CMesReader::new(
@@ -274,7 +264,7 @@ pub struct Header {
 impl Header {
     pub const LENGTH: usize = 140;
     pub fn from_bytes(input: &[u8; 140]) -> Result<Self, ParseError> {
-        let mut header = Self {
+        let header = Self {
             version_flag: u32::from_be_bytes(input[0x3C..0x40].try_into().unwrap()),
             min_x: f32::from_be_bytes(input[0x40..0x44].try_into().unwrap()),
             min_y: f32::from_be_bytes(input[0x44..0x48].try_into().unwrap()),
