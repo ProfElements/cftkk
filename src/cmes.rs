@@ -237,7 +237,7 @@ impl<Data: AsRef<[u8]>> CMesReader<Data> {
                     .unwrap(),
             )?))
         } else {
-            return Err(ParseError::ZeroOffset);
+            Err(ParseError::ZeroOffset)
         }
     }
 }
@@ -351,14 +351,14 @@ impl Normal {
 }
 
 pub struct MeshNode {
-    data: [u8; 12],
+    _data: [u8; 12],
 }
 
 impl MeshNode {
     pub const LENGTH: usize = 12;
 
     pub fn from_bytes(data: &[u8; Self::LENGTH]) -> Self {
-        Self { data: *data }
+        Self { _data: *data }
     }
 }
 

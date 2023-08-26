@@ -128,7 +128,7 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
                 node_offset = usize::try_from(node.unk1_node_offset).unwrap();
                 node_size = usize::try_from(node.unk1_node_offset).unwrap() - node_offset;
             } else {
-                node_offset = node_offset + node_size;
+                node_offset += node_size;
             }
         }
 
@@ -265,7 +265,7 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
             if offset == indexes_bytes.len() - 1 {
                 break;
             }
-            if indexes_bytes.get(offset..offset + 2).unwrap_or(&[0, 0]) == &[0x0, 0x99] {
+            if indexes_bytes.get(offset..offset + 2).unwrap_or(&[0, 0]) == [0x0, 0x99] {
                 let actual_header_length = match self.header.vertex_size_index {
                     0x15 => IndexHeader::LENGTH + 1,
                     0x10 | 0x18 | 0x19 => IndexHeader::LENGTH,
@@ -294,10 +294,7 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
 
                 let indexes = indexes_bytes[indicies_offset..]
                     .chunks_exact(actual_index_length)
-                    .map(|data| {
-                        let index_data = data.try_into().unwrap();
-                        Index::from_bytes(index_data)
-                    })
+                    .map(Index::from_bytes)
                     .take(header.count as usize);
 
                 for index in indexes {
@@ -441,22 +438,20 @@ impl Index {
         };
 
         match input.len() {
-            0x8 => return index,
+            0x8 => index,
             0x9 => {
                 index.tag = input[8];
-                return index;
+                index
             }
-            0x10 => {
-                return Self {
-                    unk1: u16::from_be_bytes(input[0..2].try_into().unwrap()),
-                    pos_idx: u16::from_be_bytes(input[2..4].try_into().unwrap()),
-                    normal_idx: u16::from_be_bytes(input[4..8].try_into().unwrap()),
-                    color_idx: u16::from_be_bytes(input[8..10].try_into().unwrap()),
-                    texcoord_idx: u16::from_be_bytes(input[10..12].try_into().unwrap()),
-                    tag: 0,
-                }
-            }
-            _ => return index,
+            0x10 => Self {
+                unk1: u16::from_be_bytes(input[0..2].try_into().unwrap()),
+                pos_idx: u16::from_be_bytes(input[2..4].try_into().unwrap()),
+                normal_idx: u16::from_be_bytes(input[4..8].try_into().unwrap()),
+                color_idx: u16::from_be_bytes(input[8..10].try_into().unwrap()),
+                texcoord_idx: u16::from_be_bytes(input[10..12].try_into().unwrap()),
+                tag: 0,
+            },
+            _ => index,
         }
     }
 }
@@ -484,7 +479,7 @@ impl<'a> ActorNode<'a> {
     pub const LENGTH: usize = 0x140;
 
     pub fn from_bytes(input: &[u8; ActorNode::LENGTH], data: &'a [u8], idx: u16) -> ActorNode<'a> {
-        let node = Self {
+        Self {
             data,
             idx,
             node_idx: u32::from_be_bytes(input[0x74..0x78].try_into().unwrap()),
@@ -500,9 +495,7 @@ impl<'a> ActorNode<'a> {
             prev_node_offset: u32::from_be_bytes(input[0x118..0x11C].try_into().unwrap()),
             next_node_offset: u32::from_be_bytes(input[0x11C..0x120].try_into().unwrap()),
             name_offset: u32::from_be_bytes(input[0x130..0x134].try_into().unwrap()),
-        };
-
-        node
+        }
     }
 
     pub fn verticies(&self) -> Result<impl ExactSizeIterator<Item = Vertex> + '_, ParseError> {
@@ -616,7 +609,7 @@ impl<'a> ActorNode<'a> {
             if offset == indexes_bytes.len() - 1 {
                 break;
             }
-            if indexes_bytes.get(offset..offset + 2).unwrap_or(&[0, 0]) == &[0x0, 0x99] {
+            if indexes_bytes.get(offset..offset + 2).unwrap_or(&[0, 0]) == [0x0, 0x99] {
                 let actual_header_length = match self.idx {
                     0x15 => IndexHeader::LENGTH + 1,
                     0x10 | 0x18 | 0x19 => IndexHeader::LENGTH,
@@ -645,10 +638,7 @@ impl<'a> ActorNode<'a> {
 
                 let indexes = indexes_bytes[indicies_offset..]
                     .chunks_exact(actual_index_length)
-                    .map(|data| {
-                        let index_data = data.try_into().unwrap();
-                        Index::from_bytes(index_data)
-                    })
+                    .map(Index::from_bytes)
                     .take(header.count as usize);
 
                 for index in indexes {
@@ -685,13 +675,11 @@ impl ActorGeometry {
     pub const LENGTH: usize = 0x40;
 
     pub fn from_bytes(input: &[u8; Self::LENGTH]) -> Self {
-        let geo = Self {
+        Self {
             node_count: u32::from_be_bytes(input[0x30..0x34].try_into().unwrap()),
             index_buffer_offset: u32::from_be_bytes(input[0x38..0x3C].try_into().unwrap()),
             node_offset: u32::from_be_bytes(input[0x3C..0x40].try_into().unwrap()),
-        };
-
-        geo
+        }
     }
 }
 /*

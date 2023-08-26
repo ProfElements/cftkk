@@ -43,7 +43,7 @@ impl<Data: AsRef<[u8]>> TexrReader<Data> {
 
     pub fn texture_lookup_data(&self) -> Option<&[u8]> {
         if self.header().tlut_offset == 0 {
-            return None;
+            None
         } else {
             Some(
                 self.input

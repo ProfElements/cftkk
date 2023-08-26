@@ -25,7 +25,7 @@ impl<Data: AsRef<[u8]>> FetmReader<Data> {
 
         let magic = input.as_ref().get(0..3).ok_or(ParseError::UnexpectedEnd)?;
 
-        if magic != &[0x01, 0x7C, 0x07] {
+        if magic != [0x01, 0x7C, 0x07] {
             return Err(ParseError::BadMagic);
         }
 
@@ -44,11 +44,7 @@ impl<Data: AsRef<[u8]>> FetmReader<Data> {
     pub fn tokens(&self) -> impl Iterator<Item = TkKind> + '_ {
         let mut index = 0;
         from_fn(move || {
-            let token_kind = if let Some(kind) = self.input.as_ref().get(index) {
-                kind
-            } else {
-                return None;
-            };
+            let token_kind = self.input.as_ref().get(index)?;
 
             match token_kind {
                 0 => {
