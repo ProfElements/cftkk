@@ -1,4 +1,5 @@
 use cftkk::{
+    actr::{ActorNode, ActrReader},
     cmes::CMesReader,
     fetm::FetmReader,
     gcp::{GcpReader, Tag},
@@ -78,7 +79,21 @@ fn main() {
                 );
             }
 
-            let _ = write(format!("{}.obj", resource.name), string);
+            //let _ = write(format!("{}.obj", resource.name), string);
+        }
+        if resource.tag == Tag::Actor {
+            let actr = ActrReader::new(resource.data).unwrap();
+
+            println!(
+                "Name: {}, Node Count: {}, Vertex Buffer Offset: {}",
+                resource.name,
+                actr.header().node_count,
+                actr.header().vertex_buffer_offset,
+            );
+
+            for node in actr.nodes().unwrap() {
+                println!("{:?}", node);
+            }
         }
     }
 }
