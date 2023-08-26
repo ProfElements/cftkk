@@ -549,14 +549,27 @@ impl<'a> ActorNode<'a> {
         }
 
         //TODO: Hacky workaround to find size, there is probably a size a somewhere
+        let bytes = if self.next_node_offset != 0 {
+            self.data
+                .as_ref()
+                .get(texcoord_offset..self.next_node_offset as usize)
+                .ok_or(ParseError::UnexpectedEnd)?
+        } else if self.unk1_node_offset != 0
+            && self.prev_node_offset != self.unk1_node_offset
+            && self.unk2_node_offset != self.unk1_node_offset
+        {
+            self.data
+                .as_ref()
+                .get(texcoord_offset..self.unk1_node_offset as usize)
+                .ok_or(ParseError::UnexpectedEnd)?
+        } else {
+            self.data
+                .as_ref()
+                .get(texcoord_offset..texcoord_offset + Texcoord::LENGTH)
+                .ok_or(ParseError::UnexpectedEnd)?
+        };
 
-        let texcoord_bytes = self
-            .data
-            .as_ref()
-            .get(texcoord_offset..self.next_node_offset as usize)
-            .ok_or(ParseError::UnexpectedEnd)?;
-
-        Ok(texcoord_bytes.chunks_exact(Texcoord::LENGTH).map(|data| {
+        Ok(bytes.chunks_exact(Texcoord::LENGTH).map(|data| {
             let texcoord_data = data.try_into().unwrap();
 
             Texcoord::from_bytes(texcoord_data)
