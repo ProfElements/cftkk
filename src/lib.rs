@@ -1,6 +1,5 @@
 #![no_std]
-
-extern crate std;
+#![warn(clippy::std_instead_of_alloc, clippy::std_instead_of_core)]
 
 extern crate alloc;
 
