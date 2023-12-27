@@ -28,6 +28,11 @@ fn main() {
     let sector = Sector::from_tokens(&tokens[pos + 1 + World::LENGTH + 1..]).unwrap();
     println!("{:?}", sector);
 
+    println!(
+        "{:?}",
+        &tokens[pos + 1 + World::LENGTH + 1 + Sector::LENGTH]
+    );
+
     let world_node = WorldNode::from_tokens(&tokens[sector.first_node_offset + 6..]).unwrap();
     println!("{:?}", world_node);
 

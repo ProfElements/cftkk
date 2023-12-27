@@ -2,6 +2,7 @@
 #![warn(clippy::std_instead_of_alloc, clippy::std_instead_of_core)]
 
 extern crate alloc;
+extern crate std;
 
 pub mod actr;
 pub mod cmes;
