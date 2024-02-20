@@ -1,6 +1,10 @@
-use crate::ParseError;
+use crate::{fetm::entityclasses::main_character::MainCharacter as Character, ParseError};
 use core::iter::from_fn;
 
+use self::nodes::simulation_object::SimulationObject as Node2;
+
+mod entityclasses;
+mod nodes;
 #[derive(Debug)]
 pub enum TkKind<'a> {
     I8(i8),
@@ -156,28 +160,40 @@ impl TkKind<'_> {
             Self::I16(val) => Ok(*val as usize),
             Self::U16(val) => Ok(*val as usize),
             Self::U32(val) => Ok(*val as usize),
-            _ => Err(Error::InvalidTokenKind),
+            val => {
+                std::println!("{val:?}");
+                Err(Error::InvalidTokenKind)
+            }
         }
     }
 
     pub fn extract_float(&self) -> Result<f32, Error> {
         match self {
             Self::F32(val) => Ok(*val),
-            _ => Err(Error::InvalidTokenKind),
+            val => {
+                std::println!("{val:?}");
+                Err(Error::InvalidTokenKind)
+            }
         }
     }
 
     pub fn extract_str(&self) -> Result<&str, Error> {
         match self {
             Self::String(val) => Ok(val),
-            _ => Err(Error::InvalidTokenKind),
+            val => {
+                std::println!("{val:?}");
+                Err(Error::InvalidTokenKind)
+            }
         }
     }
 
     pub fn extract_hex8(&self) -> Result<usize, Error> {
         match self {
             Self::Hex8(val) => Ok(*val as usize),
-            _ => Err(Error::InvalidTokenKind),
+            val => {
+                std::println!("{val:?}");
+                Err(Error::InvalidTokenKind)
+            }
         }
     }
 }
@@ -423,12 +439,11 @@ impl<'a> EntityClassHeader<'a> {
     pub fn from_tokens(tokens: &'a [TkKind; EntityClassHeader::LENGTH]) -> Result<Self, Error> {
         if tokens[0].extract_str()?.as_bytes() == b"<noentclass>" {
             return Ok(Self {
-                name: tokens[1].extract_str()?,
+                name: tokens[0].extract_str()?,
                 has_entity_class: false,
                 class_size: 0,
             });
         }
-
         Ok(Self {
             name: tokens[0].extract_str()?,
             has_entity_class: tokens[1].extract_int()? != 0,
@@ -462,7 +477,7 @@ impl<'a> EntityClass<'a> {
 #[derive(Debug, PartialEq)]
 pub enum EntityKlass<'a> {
     WorldSector(WorldSector<'a>),
-    MainCharacter(MainCharacter),
+    MainCharacter(Character),
     DynamicColllsionNode,
     Empty,
 }
@@ -472,8 +487,9 @@ impl<'a> EntityKlass<'a> {
         match header.name {
             "World Sector" => Ok(Self::WorldSector(WorldSector::from_tokens(tokens)?)),
             "Dynamic Collision Node" => Ok(Self::DynamicColllsionNode),
-            "Main Character" => Ok(Self::MainCharacter(MainCharacter::from_tokens(tokens)?)),
+            "Main Character" => Ok(Self::MainCharacter(Character::from_tokens(tokens)?)),
             "" => Ok(Self::Empty),
+            "<noentclass>" => Ok(Self::Empty),
             _ => {
                 std::println!("{} isn't supported right now", header.name);
                 Ok(Self::Empty)
@@ -844,7 +860,7 @@ pub struct WorldNode<'a> {
     pub node_type: &'a str,
     pub node_name: &'a str,
     pub entity_class: EntityClass<'a>,
-    pub node: Node,
+    pub node: Node<'a>,
 }
 
 impl<'a> WorldNode<'a> {
@@ -866,18 +882,20 @@ impl<'a> WorldNode<'a> {
 }
 
 #[derive(Debug)]
-pub enum Node {
+pub enum Node<'a> {
     Simulation(NodeSimulation),
     Collision(NodeCollision),
+    SimulationObject(Node2<'a>),
     Dummy,
 }
 
-impl Node {
-    pub fn from_name(name: &str, tokens: &[TkKind]) -> Result<Self, Error> {
+impl<'a> Node<'a> {
+    pub fn from_name(name: &str, tokens: &'a [TkKind]) -> Result<Self, Error> {
         match name {
             "simulation" => Ok(Node::Simulation(NodeSimulation::from_sectors(tokens)?)),
             "collision_node" => Ok(Node::Collision(NodeCollision::from_tokens(tokens)?)),
             "dummy" => Ok(Self::Dummy),
+            "simulation_object" => Ok(Node::SimulationObject(Node2::from_tokens(tokens)?)),
             _ => {
                 std::println!("{} is not supported", name);
                 Ok(Self::Dummy)
@@ -1077,130 +1095,5 @@ impl NodeCollision {
             unknown_flags_5: tokens[BaseNode::LENGTH + 6].extract_int()?,
             unknown_flags_6: tokens[BaseNode::LENGTH + 7].extract_int()?,
         })
-    }
-}
-
-#[derive(PartialEq, Debug)]
-pub struct MainCharacter {
-    // pub prop_base: PropBase<'a>,
-}
-
-impl MainCharacter {
-    pub fn from_tokens(tokens: &[TkKind]) -> Result<Self, Error> {
-        std::println!("{}", tokens[0].extract_int()?);
-        std::println!("{}", tokens[1].extract_float()?);
-        std::println!("{}", tokens[2].extract_int()?);
-        std::println!("{}", tokens[3].extract_int()?);
-        std::println!("{}", tokens[4].extract_float()?);
-        std::println!("{}", tokens[5].extract_float()?);
-        std::println!("{}", tokens[6].extract_int()?);
-        std::println!("{}", tokens[7].extract_int()?);
-        std::println!("{}", tokens[8].extract_int()?);
-        std::println!("{}", tokens[9].extract_float()?);
-        std::println!("{}", tokens[10].extract_float()?);
-        std::println!("{}", tokens[11].extract_int()?);
-        std::println!("{}", tokens[12].extract_int()?);
-        std::println!("{}", tokens[13].extract_int()?);
-        std::println!("{}", tokens[14].extract_int()?);
-        std::println!("{}", tokens[15].extract_hex8()?);
-        std::println!("{}", tokens[16].extract_int()?);
-        std::println!("{}", tokens[17].extract_int()?);
-        std::println!("{}", tokens[18].extract_float()?);
-        std::println!("{}", tokens[19].extract_hex8()?);
-        std::println!("{}", tokens[20].extract_hex8()?);
-        std::println!("{}", tokens[21].extract_float()?);
-        std::println!("{}", tokens[22].extract_int()?);
-        std::println!("{}", tokens[23].extract_int()?);
-        std::println!("{}", tokens[24].extract_int()?);
-        std::println!("{}", tokens[25].extract_float()?);
-        std::println!("{}", tokens[26].extract_float()?);
-        std::println!("{}", tokens[27].extract_int()?);
-        std::println!("{}", tokens[28].extract_int()?);
-        std::println!("{}", tokens[29].extract_int()?);
-        std::println!("{}", tokens[30].extract_int()?);
-        std::println!("{}", tokens[31].extract_int()?);
-        std::println!("{}", tokens[32].extract_float()?);
-        std::println!("{}", tokens[33].extract_int()?);
-        std::println!("{}", tokens[34].extract_int()?);
-        std::println!("{}", tokens[35].extract_hex8()?);
-        std::println!("{}", tokens[36].extract_hex8()?);
-        std::println!("{}", tokens[37].extract_hex8()?);
-        std::println!("{}", tokens[38].extract_int()?);
-        //CECPropBase
-        std::println!("{}", tokens[39].extract_int()?);
-        std::println!("{}", tokens[40].extract_float()?);
-        std::println!("{}", tokens[41].extract_float()?);
-        std::println!("{}", tokens[42].extract_int()?);
-        std::println!("{}", tokens[43].extract_hex8()?);
-        std::println!("{}", tokens[44].extract_int()?);
-        std::println!("{}", tokens[45].extract_int()?);
-        //CECGameObject
-        std::println!("{}", tokens[46].extract_int()?);
-        std::println!("{}", tokens[47].extract_hex8()?);
-        std::println!("{}", tokens[48].extract_int()?);
-        std::println!("{}", tokens[49].extract_int()?);
-        std::println!("{}", tokens[50].extract_int()?);
-        std::println!("{}", tokens[51].extract_int()?);
-        std::println!("{}", tokens[52].extract_int()?);
-        std::println!("{}", tokens[53].extract_int()?);
-        std::println!("{}", tokens[54].extract_int()?);
-        std::println!("{}", tokens[55].extract_int()?);
-        std::println!("{}", tokens[56].extract_int()?);
-        std::println!("{}", tokens[57].extract_int()?);
-        std::println!("{}", tokens[58].extract_int()?);
-        std::println!("{}", tokens[59].extract_int()?);
-        std::println!("{}", tokens[60].extract_int()?);
-        std::println!("{}", tokens[61].extract_int()?);
-        std::println!("{}", tokens[62].extract_int()?);
-        std::println!("{}", tokens[63].extract_int()?);
-        std::println!("{}", tokens[64].extract_int()?);
-        std::println!("{}", tokens[65].extract_int()?);
-        std::println!("{}", tokens[66].extract_float()?);
-        std::println!("{}", tokens[67].extract_float()?);
-        std::println!("{}", tokens[68].extract_float()?);
-        std::println!("{}", tokens[69].extract_float()?);
-        std::println!("{}", tokens[70].extract_int()?);
-        std::println!("{}", tokens[71].extract_int()?);
-        std::println!("{}", tokens[72].extract_float()?);
-        std::println!("{}", tokens[73].extract_float()?);
-        std::println!("{}", tokens[74].extract_int()?);
-        std::println!("{}", tokens[75].extract_hex8()?);
-        //CECCharacter
-        std::println!("{}", tokens[76].extract_hex8()?);
-        std::println!("{}", tokens[77].extract_int()?);
-        std::println!("{}", tokens[78].extract_hex8()?);
-        std::println!("{}", tokens[79].extract_int()?);
-        std::println!("{}", tokens[80].extract_hex8()?);
-        std::println!("{}", tokens[81].extract_hex8()?);
-        std::println!("{}", tokens[82].extract_hex8()?);
-        std::println!("{}", tokens[83].extract_hex8()?);
-        std::println!("{}", tokens[84].extract_hex8()?);
-        std::println!("{}", tokens[85].extract_hex8()?);
-        std::println!("{}", tokens[86].extract_hex8()?);
-        std::println!("{}", tokens[87].extract_hex8()?);
-        std::println!("{}", tokens[88].extract_hex8()?);
-        std::println!("{}", tokens[89].extract_hex8()?);
-        std::println!("{}", tokens[90].extract_hex8()?);
-        std::println!("{}", tokens[91].extract_int()?);
-        std::println!("{}", tokens[92].extract_hex8()?);
-        std::println!("{}", tokens[93].extract_hex8()?);
-        std::println!("{}", tokens[94].extract_hex8()?);
-        std::println!("{}", tokens[95].extract_float()?);
-        std::println!("{}", tokens[96].extract_int()?);
-        std::println!("{}", tokens[97].extract_int()?);
-        std::println!("{}", tokens[98].extract_int()?);
-        std::println!("{}", tokens[99].extract_hex8()?);
-        std::println!("{}", tokens[100].extract_hex8()?);
-        std::println!("{}", tokens[101].extract_hex8()?);
-        std::println!("{}", tokens[102].extract_hex8()?);
-        std::println!("{}", tokens[103].extract_hex8()?);
-        std::println!("{}", tokens[104].extract_hex8()?);
-        std::println!("{}", tokens[105].extract_hex8()?);
-        std::println!("{}", tokens[106].extract_hex8()?);
-        std::println!("{}", tokens[107].extract_hex8()?);
-        std::println!("{}", tokens[108].extract_hex8()?);
-        std::println!("{}", tokens[109].extract_int()?);
-
-        Ok(Self {})
     }
 }
