@@ -16,7 +16,9 @@ fn main() {
 
                 //println!("{}", entry.path().display());
 
-                if entry.path().extension().unwrap() == "gcp" {
+                if entry.path().extension().unwrap() == "gcp"
+                    || entry.path().extension().unwrap() == "rev"
+                {
                     if let Ok(gcp) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
                         let mut path = PathBuf::from(entry.path());
                         path.set_extension("");
