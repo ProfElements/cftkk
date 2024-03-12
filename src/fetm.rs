@@ -1,7 +1,26 @@
-use crate::{fetm::entityclasses::main_character::MainCharacter as Character, ParseError};
+use crate::{
+    fetm::entityclasses::{
+        main_character::MainCharacter, shadow_decal_system_rsb::SpongebobShadowDecalSystem,
+        swipe_effect::SwipeEffect,
+    },
+    ParseError,
+};
 use core::iter::from_fn;
 
-use self::nodes::simulation_object::SimulationObject as Node2;
+use self::{
+    entityclasses::chase_camera::ChaseCamera,
+    nodes::{
+        camera::CameraNode, controller::Controller, decal_system::DecalSystem, effect::Effect,
+        prop_node::PropNode,
+    },
+};
+use self::{
+    entityclasses::{
+        default_particle_system::DefaultParticleSystem, prop_base::PropBase,
+        shockwave_effect::ShockwaveEffect, sim_sphere::SimSphere,
+    },
+    nodes::simulation_object::SimulationObject,
+};
 
 mod entityclasses;
 mod nodes;
@@ -161,7 +180,7 @@ impl TkKind<'_> {
             Self::U16(val) => Ok(*val as usize),
             Self::U32(val) => Ok(*val as usize),
             val => {
-                std::println!("{val:?}");
+                std::println!("tried to extract int: {val:?}");
                 Err(Error::InvalidTokenKind)
             }
         }
@@ -171,7 +190,7 @@ impl TkKind<'_> {
         match self {
             Self::F32(val) => Ok(*val),
             val => {
-                std::println!("{val:?}");
+                std::println!("tried to extract f32: {val:?}");
                 Err(Error::InvalidTokenKind)
             }
         }
@@ -181,7 +200,7 @@ impl TkKind<'_> {
         match self {
             Self::String(val) => Ok(val),
             val => {
-                std::println!("{val:?}");
+                std::println!("tried to extract str: {val:?}");
                 Err(Error::InvalidTokenKind)
             }
         }
@@ -191,7 +210,7 @@ impl TkKind<'_> {
         match self {
             Self::Hex8(val) => Ok(*val as usize),
             val => {
-                std::println!("{val:?}");
+                std::println!("tried to extract str: {val:?}");
                 Err(Error::InvalidTokenKind)
             }
         }
@@ -477,21 +496,44 @@ impl<'a> EntityClass<'a> {
 #[derive(Debug, PartialEq)]
 pub enum EntityKlass<'a> {
     WorldSector(WorldSector<'a>),
-    MainCharacter(Character),
+    MainCharacter(MainCharacter),
+    SimSphere(SimSphere),
+    PropBase(PropBase),
+    ShockwaveEffect(ShockwaveEffect),
     DynamicColllsionNode,
+    DefaultParticleSystem(DefaultParticleSystem),
+    SwipeEffect(SwipeEffect),
+    SpongebobShadowDecalSystem(SpongebobShadowDecalSystem),
+    ChaseCamera(ChaseCamera),
     Empty,
 }
 
 impl<'a> EntityKlass<'a> {
     pub fn from_header(header: EntityClassHeader, tokens: &'a [TkKind]) -> Result<Self, Error> {
+        std::println!(
+            "Grabbing {:?} with size: {:?}",
+            header.name,
+            header.class_size
+        );
         match header.name {
             "World Sector" => Ok(Self::WorldSector(WorldSector::from_tokens(tokens)?)),
             "Dynamic Collision Node" => Ok(Self::DynamicColllsionNode),
-            "Main Character" => Ok(Self::MainCharacter(Character::from_tokens(tokens)?)),
+            "Main Character" => Ok(Self::MainCharacter(MainCharacter::from_tokens(tokens)?)),
+            "SimBodySphere" => Ok(Self::SimSphere(SimSphere::from_tokens(tokens)?)),
             "" => Ok(Self::Empty),
+            "Prop Base" => Ok(Self::PropBase(PropBase::from_tokens(tokens)?)),
             "<noentclass>" => Ok(Self::Empty),
+            "Shockwave Effect" => Ok(Self::ShockwaveEffect(ShockwaveEffect::from_tokens(tokens)?)),
+            "DefaultParticleSystem" => Ok(Self::DefaultParticleSystem(
+                DefaultParticleSystem::from_tokens(tokens)?,
+            )),
+            "Swipe Effect" => Ok(Self::SwipeEffect(SwipeEffect::from_tokens(tokens)?)),
+            "Shadow Decal System RSB" => Ok(Self::SpongebobShadowDecalSystem(
+                SpongebobShadowDecalSystem::from_tokens(tokens)?,
+            )),
+            "Chase Camera" => Ok(Self::ChaseCamera(ChaseCamera::from_tokens(tokens)?)),
             _ => {
-                std::println!("{} isn't supported right now", header.name);
+                panic!("{} isn't a supported entity class", header.name);
                 Ok(Self::Empty)
             }
         }
@@ -879,13 +921,28 @@ impl<'a> WorldNode<'a> {
             node: Node::from_name(tokens[0].extract_str()?, &tokens[node_tokens..])?,
         })
     }
+
+    pub fn size(&self) -> usize {
+        let class_size = if self.entity_class.class == EntityKlass::Empty {
+            4
+        } else {
+            3 + EntityClassHeader::LENGTH + self.entity_class.header.class_size
+        };
+
+        class_size + self.node.size()
+    }
 }
 
 #[derive(Debug)]
 pub enum Node<'a> {
     Simulation(NodeSimulation),
     Collision(NodeCollision),
-    SimulationObject(Node2<'a>),
+    Prop(PropNode<'a>),
+    SimulationObject(SimulationObject<'a>),
+    Effect(Effect<'a>),
+    DecalSystem(DecalSystem<'a>),
+    Camera(CameraNode<'a>),
+    Controller(Controller<'a>),
     Dummy,
 }
 
@@ -895,11 +952,32 @@ impl<'a> Node<'a> {
             "simulation" => Ok(Node::Simulation(NodeSimulation::from_sectors(tokens)?)),
             "collision_node" => Ok(Node::Collision(NodeCollision::from_tokens(tokens)?)),
             "dummy" => Ok(Self::Dummy),
-            "simulation_object" => Ok(Node::SimulationObject(Node2::from_tokens(tokens)?)),
+            "simulation_object" => Ok(Node::SimulationObject(SimulationObject::from_tokens(
+                tokens,
+            )?)),
+            "prop" => Ok(Node::Prop(PropNode::from_tokens(tokens)?)),
+            "effect" => Ok(Node::Effect(Effect::from_tokens(tokens)?)),
+            "decalsystem" => Ok(Node::DecalSystem(DecalSystem::from_tokens(tokens)?)),
+            "camera" => Ok(Self::Camera(CameraNode::from_tokens(tokens)?)),
+            "controller" => Ok(Self::Controller(Controller::from_tokens(tokens)?)),
             _ => {
-                std::println!("{} is not supported", name);
+                panic!("{} is not a supported node", name);
                 Ok(Self::Dummy)
             }
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Node::Simulation(_) => NodeSimulation::LENGTH,
+            Node::Collision(_) => NodeCollision::LENGTH,
+            Node::SimulationObject(node) => node.size(),
+            Node::Dummy => 0,
+            Node::Prop(prop) => prop.size,
+            Node::Effect(effect) => effect.size(),
+            Node::DecalSystem(decal) => decal.size(),
+            Node::Camera(camera) => camera.size(),
+            Node::Controller(node) => node.size(),
         }
     }
 }

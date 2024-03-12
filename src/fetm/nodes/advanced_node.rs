@@ -1,10 +1,10 @@
-use crate::fetm::{EntityClass, Error, TkKind};
+use crate::fetm::{EntityClass, EntityClassHeader, EntityKlass, Error, TkKind};
 
 use super::node::Node;
 
 #[derive(Debug)]
 pub struct AdvancedNode<'a> {
-    node: Node,
+    node: Node<'a>,
     has_0xb0: usize,
     field_0xb0: usize,
     has_0xb1: usize,
@@ -22,9 +22,11 @@ pub struct AdvancedNode<'a> {
 
 impl<'a> AdvancedNode<'a> {
     pub fn from_tokens(data: &'a [TkKind]) -> Result<Self, Error> {
-        let base = Node::SIZE;
+        let node = Node::from_tokens(data)?;
+        let base = node.size();
+
         Ok(Self {
-            node: Node::from_tokens(data)?,
+            node,
             has_0xb0: data[base].extract_int()?,
             field_0xb0: data[base + 1].extract_int()?,
             has_0xb1: data[base + 2].extract_int()?,
@@ -39,5 +41,15 @@ impl<'a> AdvancedNode<'a> {
             field_0xbc: data[base + 11].extract_float()?,
             entity_class: EntityClass::from_tokens(&data[base + 12..])?,
         })
+    }
+
+    pub fn size(&self) -> usize {
+        let class_size = if self.entity_class.class == EntityKlass::Empty {
+            1
+        } else {
+            self.entity_class.header.class_size + EntityClassHeader::LENGTH
+        };
+
+        self.node.size() + 12 + class_size
     }
 }

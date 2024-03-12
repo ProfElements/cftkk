@@ -1,6 +1,5 @@
-use alloc::vec::Vec;
-
 use crate::fetm::{EntityClassHeader, Error, TkKind};
+use alloc::vec::Vec;
 
 use super::{advanced_node::AdvancedNode, node::Node};
 

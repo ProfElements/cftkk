@@ -1,5 +1,13 @@
+pub mod camera_base;
 pub mod character;
+pub mod chase_camera;
+pub mod default_particle_system;
 pub mod game_object;
-
 pub mod main_character;
 pub mod prop_base;
+pub mod shadow_decal_system_rsb;
+pub mod shockwave_effect;
+pub mod sim_body;
+pub mod sim_item;
+pub mod sim_sphere;
+pub mod swipe_effect;

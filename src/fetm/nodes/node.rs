@@ -1,8 +1,8 @@
 use crate::fetm::{Error, TkKind};
 
 #[derive(Debug)]
-pub struct Node {
-    transform: Transform,
+pub struct Node<'a> {
+    pub transform: Transform,
     flag_0: usize,
     min_x: f32,
     min_y: f32,
@@ -29,15 +29,28 @@ pub struct Node {
     flag_14: usize,
     action_count: usize,
     //actions: [Action; action_count],
-    attachment_count: usize,
-    //attachments: [Attachment; attachment_count],
-    //
+    pub has_attachment: usize,
+    attachment: Option<Attachment<'a>>, //attachments: [Attachment; attachment_count],
+                                        //
 }
 
-impl Node {
+impl<'a> Node<'a> {
     pub const SIZE: usize = StaticTransform::SIZE + 1 + 26;
-    pub fn from_tokens(data: &[TkKind]) -> Result<Self, Error> {
-        let base = StaticTransform::SIZE + 1; //counts for transform_type
+    pub fn from_tokens(data: &'a [TkKind]) -> Result<Self, Error> {
+        let base = Transform::from_tokens(data)?.size();
+
+        if data[base + 24].extract_int()? != 0 {
+            panic!("action_count not 0");
+        }
+
+        let attachment = if data[base + 25].extract_int()? != 0 {
+            Some(Attachment::from_tokens(&data[base + 26..])?)
+        } else {
+            None
+        };
+
+        std::println!("attachment: {attachment:?}");
+
         Ok(Self {
             transform: Transform::from_tokens(data)?,
             flag_0: data[base].extract_int()?,
@@ -65,8 +78,19 @@ impl Node {
             flag_13: data[base + 22].extract_int()?,
             flag_14: data[base + 23].extract_int()?,
             action_count: data[base + 24].extract_int()?,
-            attachment_count: data[base + 25].extract_int()?,
+            has_attachment: data[base + 25].extract_int()?,
+            attachment,
         })
+    }
+
+    pub fn size(&self) -> usize {
+        let attachment_size = if let Some(attach) = &self.attachment {
+            attach.size()
+        } else {
+            0
+        };
+
+        self.transform.size() + 26 + attachment_size
     }
 }
 
@@ -74,6 +98,7 @@ impl Node {
 pub enum Transform {
     Static(StaticTransform),
     Spline(SplineTransform),
+    Empty,
 }
 
 impl Transform {
@@ -81,7 +106,16 @@ impl Transform {
         match data[0].extract_int()? {
             1 => Ok(Transform::Static(StaticTransform::from_tokens(&data[1..])?)),
             //2 => Ok(Transform::Spline(SplineTransform::from_tokens(data[1..]))?),
+            0 => Ok(Self::Empty),
             _ => panic!(),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Transform::Static(_) => StaticTransform::SIZE + 1,
+            Transform::Spline(_) => SplineTransform::SIZE + 1,
+            Transform::Empty => 1,
         }
     }
 }
@@ -119,3 +153,34 @@ impl StaticTransform {
 
 #[derive(Debug)]
 pub struct SplineTransform;
+
+impl SplineTransform {
+    pub const SIZE: usize = 2;
+}
+
+#[derive(Debug)]
+pub struct Attachment<'a> {
+    node_name: &'a str,
+    bone_name: &'a str,
+    flag_0: usize,
+    flag_1: usize,
+    flag_2: usize,
+    tranform: Transform,
+}
+
+impl<'a> Attachment<'a> {
+    pub fn from_tokens(data: &'a [TkKind]) -> Result<Self, Error> {
+        Ok(Self {
+            node_name: data[0].extract_str()?,
+            bone_name: data[1].extract_str()?,
+            flag_0: data[2].extract_int()?,
+            flag_1: data[3].extract_int()?,
+            flag_2: data[4].extract_int()?,
+            tranform: Transform::from_tokens(&data[5..])?,
+        })
+    }
+
+    pub fn size(&self) -> usize {
+        5 + self.tranform.size()
+    }
+}
