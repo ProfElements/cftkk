@@ -5,7 +5,7 @@ use std::{
 };
 
 use cftkk::texr::{Format, TexrReader};
-use gctex::librii::rii_decode;
+use gctex::TextureFormat;
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -41,12 +41,12 @@ fn main() {
         _ => 0,
     };
 
-    rii_decode(
+    gctex::decode_into(
         &mut dest_data,
         texr.image_data(),
         texr.header().width,
         texr.header().height,
-        gx_format,
+        TextureFormat::from_u32(gx_format).unwrap(),
         texr.texture_lookup_data().unwrap_or(&[]),
         tlut_format,
     );

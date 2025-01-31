@@ -1,4 +1,4 @@
-use cftkk::gcp::GcpReader;
+use cftkk::gcp::{GcpReader, Tag};
 use std::{env, path::PathBuf};
 
 fn main() {
@@ -22,9 +22,35 @@ fn main() {
                     if let Ok(gcp) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
                         let mut path = PathBuf::from(entry.path());
                         path.set_extension("");
-                        std::fs::create_dir(&path).unwrap();
+                        let _ = std::fs::create_dir(&path);
                         for file in gcp.resource_entries() {
-                            let _ = std::fs::write(path.join(file.name), file.data);
+                            let mut name = String::from(file.name);
+
+                            if file.name == "FilenameTable.pak.sys"
+                                || file.name == "TagTable.pak.sys"
+                            {
+                                let _ = std::fs::write(path.join(file.name), file.data);
+                                continue;
+                            }
+
+                            match file.tag {
+                                Tag::Texture => {
+                                    name.push_str(".texr");
+                                    let _ = std::fs::write(path.join(name), file.data);
+                                }
+                                Tag::CollisionMesh => {
+                                    name.push_str(".cmes");
+                                    let _ = std::fs::write(path.join(name), file.data);
+                                }
+                                Tag::Actor => {
+                                    name.push_str(".actr");
+                                    let _ = std::fs::write(path.join(name), file.data);
+                                }
+
+                                _ => {
+                                    let _ = std::fs::write(path.join(file.name), file.data);
+                                }
+                            }
                         }
                     } else {
                         if let Err(err) = GcpReader::new(std::fs::read(entry.path()).unwrap()) {
