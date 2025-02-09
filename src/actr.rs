@@ -1,4 +1,7 @@
+use std::println;
+
 use alloc::vec::Vec;
+use experimental::{Actor, AnimationQuantisation3, ResourceInfo, SoftSkin};
 
 use crate::ParseError;
 
@@ -93,6 +96,31 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
             .as_ref()
             .get(0..Header::LENGTH)
             .ok_or(ParseError::UnexpectedEnd)?;
+
+        let actor =
+            experimental::Actor::from_bytes(input.as_ref()[0..Actor::SIZE].try_into().unwrap());
+        println!("{actor:?}");
+
+        let actor_node = experimental::ActorNode::from_bytes(
+            input.as_ref()[actor.root_actor_node_offset as usize
+                ..actor.root_actor_node_offset as usize + experimental::ActorNode::SIZE]
+                .try_into()
+                .unwrap(),
+        );
+        println!("{actor_node:?}");
+        println!("{:?}", actor_node.name_from_buffer(input.as_ref()));
+        // println!(
+        //     "{:?}",
+        //     actor_node
+        //         .actor_info
+        //         .mesh
+        //         .batches_from_buffer(input.as_ref())
+        // );
+        let seg = actor_node
+            .actor_info
+            .mesh
+            .display_list_parts_from_buffer(input.as_ref());
+        println!("{seg:?}, {}", seg.len());
 
         let header = Header::from_bytes(header_data.try_into().unwrap())?;
 
@@ -346,7 +374,7 @@ impl Vertex {
         }
     }
 }
-
+#[derive(Copy, Clone, Debug)]
 pub struct Normal {
     pub x: i8,
     pub y: i8,
@@ -776,3 +804,668 @@ Node node[geo.node_count] @ actor.node_offset;
 
 something16 some[node[0].some_count] @ node[0].some_offset;
  */
+
+mod experimental {
+    use core::ffi::CStr;
+    use std::{boxed::Box, ffi::CString, println, vec::Vec};
+
+    use super::{Normal, Texcoord};
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct ResourceInfo {
+        package_id: u32,
+        group_id: u16,
+        kind: u8,
+        context_offset: u32,
+        crc: u32,
+        child_1_resource_offset: u32,
+        child_2_resource_offset: u32,
+        parent_resource_offset: u32,
+    }
+
+    impl ResourceInfo {
+        pub const SIZE: usize = 0x20;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                package_id: u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                group_id: u16::from_be_bytes(bytes[4..6].try_into().unwrap()),
+                kind: bytes[6],
+                context_offset: u32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                crc: u32::from_be_bytes(bytes[12..16].try_into().unwrap()),
+                child_1_resource_offset: u32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                child_2_resource_offset: u32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                parent_resource_offset: u32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SoftSkin {
+        number_of_vertices: u32,
+        vertex_offset: u32,
+        number_of_batches: u32,
+        batch_offset: u32,
+        batch_primitive_offset: u32,
+        number_of_solid_batches: u32,
+        number_of_color_key_batches: u32,
+        number_of_alpha_batches: u32,
+        first_color_key_primitive_offset: i32,
+        first_alpha_primitive_offset: i32,
+        first_color_key_primitive_vertex_offset: i32,
+        first_alpha_primitive_vertex_offset: i32,
+        bones_per_pertex: u8,
+        flags: u16,
+        display_segment_offset: u32,
+        display_list_offset: u32,
+        display_list_size: u32,
+        position_offset: u32,
+        normal_offset: u32,
+        texture_coord_offset: u32,
+        color_offset: u32,
+        position_count: u32,
+        normal_count: u32,
+        morph_target_offset: u32,
+        patch_offset: u32,
+        vertex_normal_extra_offset: u32,
+    }
+
+    impl SoftSkin {
+        pub const SIZE: usize = 0x80;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                number_of_vertices: u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                vertex_offset: u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                number_of_batches: u32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                batch_offset: u32::from_be_bytes(bytes[12..16].try_into().unwrap()),
+                batch_primitive_offset: u32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                number_of_solid_batches: u32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                number_of_color_key_batches: u32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+                number_of_alpha_batches: u32::from_be_bytes(bytes[28..32].try_into().unwrap()),
+                first_color_key_primitive_offset: i32::from_be_bytes(
+                    bytes[32..36].try_into().unwrap(),
+                ),
+                first_alpha_primitive_offset: i32::from_be_bytes(bytes[36..40].try_into().unwrap()),
+                first_color_key_primitive_vertex_offset: i32::from_be_bytes(
+                    bytes[40..44].try_into().unwrap(),
+                ),
+                first_alpha_primitive_vertex_offset: i32::from_be_bytes(
+                    bytes[44..48].try_into().unwrap(),
+                ),
+                bones_per_pertex: bytes[48],
+                flags: u16::from_be_bytes(bytes[50..52].try_into().unwrap()),
+                display_segment_offset: u32::from_be_bytes(bytes[52..56].try_into().unwrap()),
+                display_list_offset: u32::from_be_bytes(bytes[56..60].try_into().unwrap()),
+                display_list_size: u32::from_be_bytes(bytes[60..64].try_into().unwrap()),
+                position_offset: u32::from_be_bytes(bytes[64..68].try_into().unwrap()),
+                normal_offset: u32::from_be_bytes(bytes[68..72].try_into().unwrap()),
+                texture_coord_offset: u32::from_be_bytes(bytes[72..76].try_into().unwrap()),
+                color_offset: u32::from_be_bytes(bytes[76..80].try_into().unwrap()),
+                position_count: u32::from_be_bytes(bytes[80..84].try_into().unwrap()),
+                normal_count: u32::from_be_bytes(bytes[84..88].try_into().unwrap()),
+                morph_target_offset: u32::from_be_bytes(bytes[88..92].try_into().unwrap()),
+                patch_offset: u32::from_be_bytes(bytes[92..96].try_into().unwrap()),
+                vertex_normal_extra_offset: u32::from_be_bytes(bytes[96..100].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Actor {
+        resource_info: ResourceInfo,
+        soft_skin: SoftSkin,
+        pub root_actor_node_offset: u32,
+        flags: u32,
+        last_frame: u32,
+        max_primitive_vertex_count: i32,
+        max_total_primitive_vertex_count: i32,
+        anim_segment_offset: u32,
+        number_of_anim_segments: u32,
+        max_radius: f32,
+        x_min: f32,
+        x_max: f32,
+        y_min: f32,
+        y_max: f32,
+        z_min: f32,
+        z_max: f32,
+        matrix_palette_size: u8,
+        vertex_type: u8,
+        draw_sync: u16,
+        anim_event_data_offset: u32,
+        anim_segment_names_offset: u32,
+        node_names_offset: u32,
+        last_frame_count: u32,
+        actor_nodes_offset: u32,
+        light_map_format: u8,
+        number_of_nodes: u8,
+        blend_mode_flags: u8,
+    }
+
+    impl Actor {
+        pub const SIZE: usize = 0xF4;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                resource_info: ResourceInfo::from_bytes(
+                    bytes[0..ResourceInfo::SIZE].try_into().unwrap(),
+                ),
+                soft_skin: SoftSkin::from_bytes(
+                    bytes[ResourceInfo::SIZE..ResourceInfo::SIZE + SoftSkin::SIZE]
+                        .try_into()
+                        .unwrap(),
+                ),
+                root_actor_node_offset: u32::from_be_bytes(bytes[160..164].try_into().unwrap()),
+                flags: u32::from_be_bytes(bytes[164..168].try_into().unwrap()),
+                last_frame: u32::from_be_bytes(bytes[168..172].try_into().unwrap()),
+                max_primitive_vertex_count: i32::from_be_bytes(bytes[172..176].try_into().unwrap()),
+                max_total_primitive_vertex_count: i32::from_be_bytes(
+                    bytes[176..180].try_into().unwrap(),
+                ),
+                anim_segment_offset: u32::from_be_bytes(bytes[180..184].try_into().unwrap()),
+                number_of_anim_segments: u32::from_be_bytes(bytes[184..188].try_into().unwrap()),
+                max_radius: f32::from_be_bytes(bytes[188..192].try_into().unwrap()),
+                x_min: f32::from_be_bytes(bytes[192..196].try_into().unwrap()),
+                x_max: f32::from_be_bytes(bytes[196..200].try_into().unwrap()),
+                y_min: f32::from_be_bytes(bytes[200..204].try_into().unwrap()),
+                y_max: f32::from_be_bytes(bytes[204..208].try_into().unwrap()),
+                z_min: f32::from_be_bytes(bytes[208..212].try_into().unwrap()),
+                z_max: f32::from_be_bytes(bytes[212..216].try_into().unwrap()),
+                matrix_palette_size: bytes[216],
+                vertex_type: bytes[217],
+                draw_sync: u16::from_be_bytes(bytes[218..220].try_into().unwrap()),
+                anim_event_data_offset: u32::from_be_bytes(bytes[220..224].try_into().unwrap()),
+                anim_segment_names_offset: u32::from_be_bytes(bytes[224..228].try_into().unwrap()),
+                node_names_offset: u32::from_be_bytes(bytes[228..232].try_into().unwrap()),
+                last_frame_count: u32::from_be_bytes(bytes[232..236].try_into().unwrap()),
+                actor_nodes_offset: u32::from_be_bytes(bytes[236..240].try_into().unwrap()),
+                light_map_format: bytes[240],
+                number_of_nodes: bytes[241],
+                blend_mode_flags: bytes[242],
+            }
+        }
+    }
+
+    /*
+        struct _TBAnimQuantisation3 {
+        // total size: 0x20
+        float xQuantBase; // offset 0x0, size 0x4
+        float yQuantBase; // offset 0x4, size 0x4
+        float zQuantBase; // offset 0x8, size 0x4
+        unsigned short lastKeyOffset; // offset 0xC, size 0x2
+        short pad; // offset 0xE, size 0x2
+        float xQuantScale; // offset 0x10, size 0x4
+        float yQuantScale; // offset 0x14, size 0x4
+        float zQuantScale; // offset 0x18, size 0x4
+        void * lastAnimTrack; // offset 0x1C, size 0x4
+    };
+        */
+    #[derive(Copy, Clone, Debug)]
+    pub struct AnimationQuantisation3 {
+        x_quantisation_base: f32,
+        y_quantisation_base: f32,
+        z_quantisation_base: f32,
+        last_animation_key_offset: u16,
+        x_quantisation_scale: f32,
+        y_quantisation_scale: f32,
+        z_quantisation_scale: f32,
+        last_animation_track_offset: u32,
+    }
+
+    impl AnimationQuantisation3 {
+        pub const SIZE: usize = 0x20;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                x_quantisation_base: f32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                y_quantisation_base: f32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                z_quantisation_base: f32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                last_animation_key_offset: u16::from_be_bytes(bytes[12..14].try_into().unwrap()),
+                x_quantisation_scale: f32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                y_quantisation_scale: f32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                z_quantisation_scale: f32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+                last_animation_track_offset: u32::from_be_bytes(bytes[28..32].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct AnimationQuantisation4 {
+        x_quantisation_base: f32,
+        y_quantisation_base: f32,
+        z_quantisation_base: f32,
+        w_quantisation_base: f32,
+        x_quantisation_scale: f32,
+        y_quantisation_scale: f32,
+        z_quantisation_scale: f32,
+        w_quantisation_scale: f32,
+        last_animation_key_offset: u16,
+        last_animation_track_offset: u32,
+    }
+
+    impl AnimationQuantisation4 {
+        pub const SIZE: usize = 0x30;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                x_quantisation_base: f32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                y_quantisation_base: f32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                z_quantisation_base: f32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                w_quantisation_base: f32::from_be_bytes(bytes[12..16].try_into().unwrap()),
+                x_quantisation_scale: f32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                y_quantisation_scale: f32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                z_quantisation_scale: f32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+                w_quantisation_scale: f32::from_be_bytes(bytes[28..32].try_into().unwrap()),
+                last_animation_key_offset: u16::from_be_bytes(bytes[32..34].try_into().unwrap()),
+                last_animation_track_offset: u32::from_be_bytes(bytes[44..48].try_into().unwrap()),
+            }
+        }
+    }
+
+    /*
+    struct _TBMesh {
+        // total size: 0x70
+        int noofVertices; // offset 0x0, size 0x4
+        union {
+            unsigned char * vertices; // offset 0x0, size 0x4
+            struct _TBVertexBuffer * vertexBuffer; // offset 0x0, size 0x4
+        }; // offset 0x4, size 0x4
+        int noofBatches; // offset 0x8, size 0x4
+        struct _TBMeshBatch * batches; // offset 0xC, size 0x4
+        struct _TBMeshPrim * primitives; // offset 0x10, size 0x4
+        unsigned int noofSolidBatches; // offset 0x14, size 0x4
+        unsigned int noofCKeyBatches; // offset 0x18, size 0x4
+        unsigned int noofAlphaBatches; // offset 0x1C, size 0x4
+        int firstCKeyPrim; // offset 0x20, size 0x4
+        int firstAlphaPrim; // offset 0x24, size 0x4
+        int firstCKeyPrimVert; // offset 0x28, size 0x4
+        int firstAlphaPrimVert; // offset 0x2C, size 0x4
+        float * svVerts; // offset 0x30, size 0x4
+        struct _TBShadowVolumeFace * svFaces; // offset 0x34, size 0x4
+        struct _TBShadowVolumeEdge * svEdges; // offset 0x38, size 0x4
+        int svNoofFaces; // offset 0x3C, size 0x4
+        unsigned char * svEdgeFlags; // offset 0x40, size 0x4
+        int svNoofEdges; // offset 0x44, size 0x4
+        int svNoofVerts; // offset 0x48, size 0x4
+        unsigned int flags; // offset 0x4C, size 0x4
+        unsigned char * positionData; // offset 0x50, size 0x4
+        unsigned char * normalData; // offset 0x54, size 0x4
+        unsigned char * textureCoordData; // offset 0x58, size 0x4
+        unsigned char * colourData; // offset 0x5C, size 0x4
+        unsigned char * displayList; // offset 0x60, size 0x4
+        unsigned int displayListSize; // offset 0x64, size 0x4
+        union {
+            struct _TBDLSegment * displaySegments; // offset 0x0, size 0x4
+            struct _TBDLTextureOffset * displayTextureOffsets; // offset 0x0, size 0x4
+        }; // offset 0x68, size 0x4
+        unsigned int pad; // offset 0x6C, size 0x4
+    };
+        */
+    #[derive(Copy, Clone, Debug)]
+    pub struct Mesh {
+        number_of_vertices: u32,
+        vertext_offset: u32,
+        number_of_batches: i32,
+        batch_offset: u32,
+        primitive_offset: u32,
+        number_of_solid_batches: u32,
+        number_of_color_key_batches: u32,
+        number_of_alpha_batches: u32,
+        first_color_key_primitive: i32,
+        first_alpha_primitive: i32,
+        first_color_key_primitive_vertex: i32,
+        first_alpha_primitive_vertex: i32,
+        shadow_volume_vertex_offset: u32,
+        shadow_volume_face_offset: u32,
+        shadow_volume_edge_offset: u32,
+        number_of_shadow_volume_faces: i32,
+        shadow_volume_edge_flags_offset: u32,
+        number_of_shadow_volume_edge: i32,
+        number_of_shadow_volume_vertices: i32,
+        flags: u32,
+        position_offset: u32,
+        normal_offset: u32,
+        texture_coord_offset: u32,
+        color_offset: u32,
+        display_list_offset: u32,
+        display_list_size: u32,
+        display_segments_offset: u32,
+    }
+
+    impl Mesh {
+        pub const SIZE: usize = 0x70;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                number_of_vertices: u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                vertext_offset: u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                number_of_batches: i32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                batch_offset: u32::from_be_bytes(bytes[12..16].try_into().unwrap()),
+                primitive_offset: u32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                number_of_solid_batches: u32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                number_of_color_key_batches: u32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+                number_of_alpha_batches: u32::from_be_bytes(bytes[28..32].try_into().unwrap()),
+                first_color_key_primitive: i32::from_be_bytes(bytes[32..36].try_into().unwrap()),
+                first_alpha_primitive: i32::from_be_bytes(bytes[36..40].try_into().unwrap()),
+                first_color_key_primitive_vertex: i32::from_be_bytes(
+                    bytes[40..44].try_into().unwrap(),
+                ),
+                first_alpha_primitive_vertex: i32::from_be_bytes(bytes[44..48].try_into().unwrap()),
+                shadow_volume_vertex_offset: u32::from_be_bytes(bytes[48..52].try_into().unwrap()),
+                shadow_volume_face_offset: u32::from_be_bytes(bytes[52..56].try_into().unwrap()),
+                shadow_volume_edge_offset: u32::from_be_bytes(bytes[56..60].try_into().unwrap()),
+                number_of_shadow_volume_faces: i32::from_be_bytes(
+                    bytes[60..64].try_into().unwrap(),
+                ),
+                shadow_volume_edge_flags_offset: u32::from_be_bytes(
+                    bytes[64..68].try_into().unwrap(),
+                ),
+                number_of_shadow_volume_edge: i32::from_be_bytes(bytes[68..72].try_into().unwrap()),
+                number_of_shadow_volume_vertices: i32::from_be_bytes(
+                    bytes[72..76].try_into().unwrap(),
+                ),
+                flags: u32::from_be_bytes(bytes[76..80].try_into().unwrap()),
+                position_offset: u32::from_be_bytes(bytes[80..84].try_into().unwrap()),
+                normal_offset: u32::from_be_bytes(bytes[84..88].try_into().unwrap()),
+                texture_coord_offset: u32::from_be_bytes(bytes[88..92].try_into().unwrap()),
+                color_offset: u32::from_be_bytes(bytes[92..96].try_into().unwrap()),
+                display_list_offset: u32::from_be_bytes(bytes[96..100].try_into().unwrap()),
+                display_list_size: u32::from_be_bytes(bytes[100..104].try_into().unwrap()),
+                display_segments_offset: u32::from_be_bytes(bytes[104..108].try_into().unwrap()),
+            }
+        }
+
+        pub fn batches_from_buffer(&self, buffer: &[u8]) -> Vec<MeshBatch> {
+            let batches_start_offset = self.batch_offset as usize;
+            let batches_end_offset =
+                batches_start_offset + (MeshBatch::SIZE * self.number_of_batches as usize);
+
+            buffer[batches_start_offset..batches_end_offset]
+                .chunks_exact(MeshBatch::SIZE)
+                .map(|bytes| MeshBatch::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn primitives_from_buffer(&self, buffer: &[u8]) -> Vec<MeshPrimitive> {
+            let mut primitive_count = 0;
+            for batch in self.batches_from_buffer(buffer) {
+                primitive_count += batch.number_of_primitives
+            }
+
+            let batches_start_offset = self.primitive_offset as usize;
+            let batches_end_offset =
+                batches_start_offset + (MeshPrimitive::SIZE * primitive_count as usize);
+
+            buffer[batches_start_offset..batches_end_offset]
+                .chunks_exact(MeshPrimitive::SIZE)
+                .map(|bytes| MeshPrimitive::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn positions_from_buffer(&self, buffer: &[u8]) -> Vec<Position> {
+            let pos_start_offset = self.position_offset as usize;
+            let pos_end_offset =
+                pos_start_offset + (Position::LENGTH * self.number_of_vertices as usize);
+            buffer[pos_start_offset..pos_end_offset]
+                .chunks_exact(Position::LENGTH)
+                .map(|bytes| Position::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn normals_from_buffer(&self, buffer: &[u8]) -> Vec<Normal> {
+            let norm_start_offset = self.normal_offset as usize;
+            let norm_end_offset =
+                norm_start_offset + (Normal::LENGTH * self.number_of_vertices as usize);
+            buffer[norm_start_offset..norm_end_offset]
+                .chunks_exact(Normal::LENGTH)
+                .map(|bytes| Normal::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn display_segments_from_buffer(&self, buffer: &[u8]) -> Vec<(u32, u32)> {
+            let seg_start = self.display_segments_offset as usize;
+            let seg_end = self.display_list_offset as usize;
+
+            buffer[seg_start..seg_end]
+                .chunks_exact(8)
+                .map(|bytes| {
+                    (
+                        u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                        u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                    )
+                })
+                .collect()
+        }
+
+        pub fn display_list_parts_from_buffer<'a>(
+            &'a self,
+            buffer: &'a [u8],
+        ) -> Vec<(DisplayListPart, Vec<(u16, u16, u16, u16)>)> {
+            let (mut max_p_idx, mut max_n_idx, mut max_t_idx, mut max_c_idx) = (0, 0, 0, 0);
+
+            let display_list_start = self.display_list_offset;
+            let display_list_end = display_list_start + self.display_list_size;
+
+            let display_list = &buffer[display_list_start as usize..display_list_end as usize];
+
+            let mut display_list_parts = Vec::new();
+            for (offset, size) in self.display_segments_from_buffer(buffer) {
+                let offset = offset as usize;
+                let part = DisplayListPart {
+                    cmd: u16::from_be_bytes(display_list[offset..offset + 2].try_into().unwrap()),
+                    vertex_count: u16::from_be_bytes(
+                        display_list[offset + 2..offset + 4].try_into().unwrap(),
+                    ),
+                };
+
+                let mut indexes = Vec::new();
+
+                let mut start = offset + 4;
+                for _ in 0..part.vertex_count {
+                    let p_idx =
+                        u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap());
+                    let n_idx =
+                        u16::from_be_bytes(display_list[start + 2..start + 4].try_into().unwrap());
+                    let t_idx =
+                        u16::from_be_bytes(display_list[start + 4..start + 6].try_into().unwrap());
+                    let c_idx =
+                        u16::from_be_bytes(display_list[start + 6..start + 8].try_into().unwrap());
+
+                    max_p_idx = p_idx.max(max_p_idx);
+                    max_n_idx = n_idx.max(max_n_idx);
+                    max_t_idx = t_idx.max(max_t_idx);
+                    max_c_idx = c_idx.max(max_c_idx);
+
+                    indexes.push((p_idx, n_idx, t_idx, c_idx));
+
+                    start += 8;
+                }
+                display_list_parts.push((part, indexes));
+            }
+            println!("{}, {}, {}, {}", max_p_idx, max_n_idx, max_t_idx, max_c_idx);
+            display_list_parts
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct DisplayListPart {
+        cmd: u16,
+        vertex_count: u16,
+    }
+
+    type Position = super::Vertex;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct MeshBatch {
+        number_of_primitives: i32,
+        texture_1_crc: u32,
+        texture_2_crc: u32,
+        flags: u32,
+    }
+
+    impl MeshBatch {
+        pub const SIZE: usize = 0x10;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                number_of_primitives: i32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                texture_1_crc: u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                texture_2_crc: u32::from_be_bytes(bytes[8..12].try_into().unwrap()),
+                flags: u32::from_be_bytes(bytes[12..16].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct MeshPrimitive {
+        primtive_type: u8,
+        flags: u8,
+        pub number_of_vertices: u16,
+        pub number_of_draw_primitives: u16,
+    }
+
+    impl MeshPrimitive {
+        pub const SIZE: usize = 0x8;
+        pub fn from_bytes(bytes: [u8; Self::SIZE]) -> Self {
+            Self {
+                primtive_type: bytes[0],
+                flags: bytes[1],
+                number_of_vertices: u16::from_be_bytes(bytes[2..4].try_into().unwrap()),
+                number_of_draw_primitives: u16::from_be_bytes(bytes[4..6].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Geometry {
+        number_of_vertices: i32,
+        number_of_triangles: i32,
+        data_stream_1_offset: u32,
+        data_stream_2_offset: u32,
+        data_stream_3_offset: u32,
+        data_stream_4_offset: u32,
+    }
+
+    impl Geometry {
+        pub const SIZE: usize = 0x20;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                number_of_vertices: i32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                number_of_triangles: i32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                data_stream_1_offset: u32::from_be_bytes(bytes[16..20].try_into().unwrap()),
+                data_stream_2_offset: u32::from_be_bytes(bytes[20..24].try_into().unwrap()),
+                data_stream_3_offset: u32::from_be_bytes(bytes[24..28].try_into().unwrap()),
+                data_stream_4_offset: u32::from_be_bytes(bytes[28..32].try_into().unwrap()),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct ActorInfo {
+        pub mesh: Mesh,
+        geometry: Geometry,
+    }
+
+    impl ActorInfo {
+        pub const SIZE: usize = 0x90;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                mesh: Mesh::from_bytes(bytes[0..Mesh::SIZE].try_into().unwrap()),
+                geometry: Geometry::from_bytes(
+                    bytes[Mesh::SIZE..Mesh::SIZE + Geometry::SIZE]
+                        .try_into()
+                        .unwrap(),
+                ),
+            }
+        }
+    }
+
+    /*
+        struct _TBActorNode {
+        // total size: 0x134
+        struct _TBAnimQuantisation3 positionQuantisationNode; // offset 0x0, size 0x20
+        struct _TBAnimQuantisation4 orientationQuantisationNode; // offset 0x20, size 0x30
+        struct _TBAnimQuantisation3 scaleQuantisationNode; // offset 0x50, size 0x20
+        unsigned char type; // offset 0x70, size 0x1
+       unsigned char flags; // offset 0x71, size 0x1
+        unsigned short pad; // offset 0x72, size 0x2
+        unsigned int nodeIndex; // offset 0x74, size 0x4
+        unsigned int crc; // offset 0x78, size 0x4
+        int noofActAnimEvents; // offset 0x7C, size 0x4
+        union {
+            struct _TBActorInfo_SoftBone softBone; // offset 0x0, size 0x50
+            struct _TBActorInfo_Mesh mesh; // offset 0x0, size 0x90
+            struct _TBActorInfo_AsyncMesh asyncMesh; // offset 0x0, size 0x90
+            struct _TBActorInfo_Link link; // offset 0x0, size 0x1
+        }; // offset 0x80, size 0x90
+        struct _TBActorNode * next; // offset 0x110, size 0x4
+        struct _TBActorNode * prev; // offset 0x114, size 0x4
+        struct _TBActorNode * parent; // offset 0x118, size 0x4
+        struct _TBActorNode * children; // offset 0x11C, size 0x4
+        struct _TBActorAnimEvent * actAnimEvents; // offset 0x120, size 0x4
+        struct _TBMorphHeader * morphTargetData; // offset 0x124, size 0x4
+        struct _TBPatchHeader * patchData; // offset 0x128, size 0x4
+        struct _TBActor * actor; // offset 0x12C, size 0x4
+        char * name; // offset 0x130, size 0x4
+    };
+        */
+    #[derive(Copy, Clone, Debug)]
+    pub struct ActorNode {
+        position_quantisation_node: AnimationQuantisation3,
+        rotation_quantisation_node: AnimationQuantisation4,
+        scale_quantisation_node: AnimationQuantisation3,
+        kind: u8,
+        flags: u8,
+        node_index: u32,
+        crc: u32,
+        number_of_actor_animation_events: i32,
+        pub actor_info: ActorInfo,
+        next_actor_node_offset: u32,
+        prev_actor_node_offset: u32,
+        parent_actor_node_offset: u32,
+        child_actor_node_offset: u32,
+        actor_anim_events_offset: u32,
+        morph_header_offset: u32,
+        patch_header_offset: u32,
+        actor_offset: u32,
+        name_offset: u32,
+    }
+
+    impl ActorNode {
+        pub const SIZE: usize = 0x134;
+        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+            Self {
+                position_quantisation_node: AnimationQuantisation3::from_bytes(
+                    bytes[0..32].try_into().unwrap(),
+                ),
+                rotation_quantisation_node: AnimationQuantisation4::from_bytes(
+                    bytes[32..80].try_into().unwrap(),
+                ),
+                scale_quantisation_node: AnimationQuantisation3::from_bytes(
+                    bytes[80..112].try_into().unwrap(),
+                ),
+                kind: bytes[112],
+                flags: bytes[113],
+                node_index: u32::from_be_bytes(bytes[116..120].try_into().unwrap()),
+                crc: u32::from_be_bytes(bytes[120..124].try_into().unwrap()),
+                number_of_actor_animation_events: i32::from_be_bytes(
+                    bytes[124..128].try_into().unwrap(),
+                ),
+                actor_info: ActorInfo::from_bytes(bytes[128..272].try_into().unwrap()),
+                next_actor_node_offset: u32::from_be_bytes(bytes[272..276].try_into().unwrap()),
+                prev_actor_node_offset: u32::from_be_bytes(bytes[276..280].try_into().unwrap()),
+                parent_actor_node_offset: u32::from_be_bytes(bytes[280..284].try_into().unwrap()),
+                child_actor_node_offset: u32::from_be_bytes(bytes[284..288].try_into().unwrap()),
+                actor_anim_events_offset: u32::from_be_bytes(bytes[288..292].try_into().unwrap()),
+                morph_header_offset: u32::from_be_bytes(bytes[292..296].try_into().unwrap()),
+                patch_header_offset: u32::from_be_bytes(bytes[296..300].try_into().unwrap()),
+                actor_offset: u32::from_be_bytes(bytes[300..304].try_into().unwrap()),
+                name_offset: u32::from_be_bytes(bytes[304..308].try_into().unwrap()),
+            }
+        }
+
+        pub fn name_from_buffer<'a>(&'a self, buffer: &'a [u8]) -> &'a str {
+            CStr::from_bytes_until_nul(
+                buffer[self.name_offset as usize..self.name_offset as usize + 0x10]
+                    .try_into()
+                    .unwrap(),
+            )
+            .unwrap()
+            .to_str()
+            .unwrap()
+        }
+    }
+}
