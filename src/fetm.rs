@@ -1,3 +1,4 @@
+pub mod objectdb;
 use crate::{
     fetm::entityclasses::{
         main_character::MainCharacter, shadow_decal_system_rsb::SpongebobShadowDecalSystem,
