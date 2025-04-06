@@ -2,7 +2,7 @@
 
 use std::{env, fs};
 
-use cftkk::actr::ActrReader;
+use cftkk::actr::{experimental, ActrReader};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -10,133 +10,102 @@ fn main() {
         eprintln!("usage: {} <collision_mesh>", args[0]);
     }
 
-    let data = fs::read(&args[1]).unwrap();
+    let _ = export_actor(&args[1]);
+}
+pub fn export_actor(name: &'_ str) -> Result<(), ()> {
+    let data = fs::read(name).unwrap();
 
-    let actr = ActrReader::new(data).unwrap();
+    let data_start = 0;
+    let data_end = data_start + 0xF4;
 
-    let mut use_nodes = false;
+    let data_bytes = data.get(data_start..data_end).ok_or(())?;
 
-    if actr.header().vertex_offset == 0
-        && actr.header().normal_offset == 0
-        && actr.header().texcoord_offset == 0
-        && actr.header().color_offset == 0
-    {
-        use_nodes = true;
-    }
-
-    match use_nodes {
+    let mut obj = String::new();
+    let actor: experimental::Actor<&[u8]> =
+        experimental::Actor::from_bytes(data_bytes.try_into().unwrap(), &data);
+    println!("{}", actor.vertex_type);
+    let skin = actor.soft_skin();
+    let uses_skin = skin.vertex_offset != 0
+        && skin.normal_offset != 0
+        && skin.texture_coord_offset != 0
+        && skin.color_offset != 0;
+    match uses_skin {
         true => {
-            let mut node_count = 0;
-            if let Ok(nodes) = actr.nodes() {
-                let mut vertex_offset = 0;
-                let mut texcoord_offset = 0;
-
-                let mut obj = String::new();
-                for node in nodes {
-                    obj.push_str(format!("g node_{}\n", node_count).as_str());
-                    node_count += 1;
-
-                    if let Ok(verticies) = node.verticies() {
-                        for vertex in verticies {
-                            obj.push_str(
-                                format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str(),
-                            );
-                        }
-                    }
-
-                    if let Ok(texcoords) = node.texcoords() {
-                        for texcoord in texcoords {
-                            obj.push_str(
-                                format!("vt {} {}\n", texcoord.x, -(texcoord.y - 1.0)).as_str(),
-                            );
-                        }
-                    }
-
-                    if let Ok(indicies) = node.indexes() {
-                        let mut curr_group = 1;
-                        for &[one, two, three] in indicies.collect::<Vec<_>>().array_windows() {
-                            if one.1 != curr_group {
-                                curr_group = one.1;
-
-                                let find = obj
-                                    .rfind(
-                                        obj.lines().collect::<Vec<_>>()
-                                            [obj.lines().collect::<Vec<_>>().len() - 2],
-                                    )
-                                    .unwrap();
-
-                                obj = obj[..find].to_string();
-                            }
-
-                            obj.push_str(
-                                format!(
-                                    "f {} {} {}\n",
-                                    one.0.pos_idx as usize + 1 + vertex_offset,
-                                    two.0.pos_idx as usize + 1 + vertex_offset,
-                                    three.0.pos_idx as usize + 1 + vertex_offset,
-                                )
-                                .as_str(),
-                            );
-                        }
-                    }
-
-                    vertex_offset += node.verticies().unwrap().collect::<Vec<_>>().len();
-
-                    if let Ok(texcoords) = node.texcoords() {
-                        texcoord_offset += texcoords.collect::<Vec<_>>().len();
-                    }
-                }
-
-                let _ = fs::write(format!("{}.obj", &args[1]), obj);
-            }
-        }
-        false => {
-            let mut obj = String::new();
-            if let Ok(verticies) = actr.verticies() {
-                for vertex in verticies {
-                    obj.push_str(format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str());
-                }
+            let vertices = skin.positions_from_buffer(actor.data);
+            let texcoords = skin.texcoords_from_buffer(actor.data, actor.vertex_type);
+            let display_list_parts =
+                skin.display_list_parts_from_buffer(actor.data, actor.vertex_type);
+            obj.push_str(format!("o skin\n",).as_str());
+            for vertex in vertices {
+                obj.push_str(format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str());
             }
 
-            if let Ok(texcoords) = actr.texcoords() {
-                for texcoord in texcoords {
-                    obj.push_str(format!("vt {} {}\n", texcoord.x, -(texcoord.y - 1.0)).as_str());
-                }
+            for texcoord in texcoords {
+                obj.push_str(format!("vt {} {}\n", texcoord.x, -(texcoord.y - 1.0)).as_str());
             }
 
-            if let Ok(indicies) = actr.indexes() {
-                let mut curr_group = 1;
-                for &[one, two, three] in indicies.collect::<Vec<_>>().array_windows() {
-                    if one.1 != curr_group {
-                        curr_group = one.1;
-
-                        let find = obj
-                            .rfind(
-                                obj.lines().collect::<Vec<_>>()
-                                    [obj.lines().collect::<Vec<_>>().len() - 2],
-                            )
-                            .unwrap();
-
-                        obj = obj[..find].to_string();
-                        obj.push_str(format!("g node_{}\n", curr_group).as_str());
-                    }
-
+            for display_list_part in display_list_parts {
+                for n in 0..display_list_part.1.len() - 2 {
+                    let (p_0_idx, _, _, t_0_idx) = display_list_part.1[n];
+                    let (p_1_idx, _, _, t_1_idx) = display_list_part.1[n + 1];
+                    let (p_2_idx, _, _, t_2_idx) = display_list_part.1[n + 2];
                     obj.push_str(
                         format!(
                             "f {}/{} {}/{} {}/{}\n",
-                            one.0.pos_idx as usize + 1,
-                            one.0.texcoord_idx + 1,
-                            two.0.pos_idx as usize + 1,
-                            two.0.texcoord_idx + 1,
-                            three.0.pos_idx as usize + 1,
-                            three.0.texcoord_idx + 1,
+                            p_0_idx + 1,
+                            t_0_idx + 1,
+                            p_1_idx + 1,
+                            t_1_idx + 1,
+                            p_2_idx + 1,
+                            t_2_idx + 1
                         )
                         .as_str(),
                     );
                 }
             }
+        }
+        false => {
+            for root_node in actor.nodes() {
+                let node_name = root_node.name_from_buffer(actor.data);
+                let mesh = root_node.actor_info.mesh;
 
-            let _ = fs::write(format!("{}.obj", &args[1]), obj);
+                let vertices = mesh.positions_from_buffer(actor.data);
+                let texcoords = mesh.texcoords_from_buffer(actor.data);
+
+                let display_list_parts = mesh.display_list_parts_from_buffer(actor.data);
+
+                obj.push_str(format!("o {}\n", node_name).as_str());
+                for vertex in vertices {
+                    obj.push_str(format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str());
+                }
+
+                for texcoord in texcoords {
+                    obj.push_str(format!("vt {} {}\n", texcoord.x, -(texcoord.y - 1.0)).as_str());
+                }
+
+                for display_list_part in display_list_parts {
+                    for n in 0..display_list_part.1.len() - 2 {
+                        let (p_0_idx, _, _, t_0_idx) = display_list_part.1[n];
+                        let (p_1_idx, _, _, t_1_idx) = display_list_part.1[n + 1];
+                        let (p_2_idx, _, _, t_2_idx) = display_list_part.1[n + 2];
+                        obj.push_str(
+                            format!(
+                                "f {}/{} {}/{} {}/{}\n",
+                                p_0_idx + 1,
+                                t_0_idx + 1,
+                                p_1_idx + 1,
+                                t_1_idx + 1,
+                                p_2_idx + 1,
+                                t_2_idx + 1
+                            )
+                            .as_str(),
+                        );
+                    }
+                }
+            }
         }
     }
+
+    let _ = fs::write(format!("{}.obj", name), obj);
+    Ok(())
 }

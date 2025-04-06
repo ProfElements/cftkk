@@ -1,7 +1,4 @@
-use std::println;
-
 use alloc::vec::Vec;
-use experimental::{Actor, AnimationQuantisation3, ResourceInfo, SoftSkin};
 
 use crate::ParseError;
 
@@ -96,32 +93,6 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
             .as_ref()
             .get(0..Header::LENGTH)
             .ok_or(ParseError::UnexpectedEnd)?;
-
-        let actor =
-            experimental::Actor::from_bytes(input.as_ref()[0..Actor::SIZE].try_into().unwrap());
-        println!("{actor:?}");
-
-        let actor_node = experimental::ActorNode::from_bytes(
-            input.as_ref()[actor.root_actor_node_offset as usize
-                ..actor.root_actor_node_offset as usize + experimental::ActorNode::SIZE]
-                .try_into()
-                .unwrap(),
-        );
-        println!("{actor_node:?}");
-        println!("{:?}", actor_node.name_from_buffer(input.as_ref()));
-        // println!(
-        //     "{:?}",
-        //     actor_node
-        //         .actor_info
-        //         .mesh
-        //         .batches_from_buffer(input.as_ref())
-        // );
-        let seg = actor_node
-            .actor_info
-            .mesh
-            .display_list_parts_from_buffer(input.as_ref());
-        println!("{seg:?}, {}", seg.len());
-
         let header = Header::from_bytes(header_data.try_into().unwrap())?;
 
         Ok(Self { input, header })
@@ -805,9 +776,9 @@ Node node[geo.node_count] @ actor.node_offset;
 something16 some[node[0].some_count] @ node[0].some_offset;
  */
 
-mod experimental {
+pub mod experimental {
     use core::ffi::CStr;
-    use std::{boxed::Box, ffi::CString, println, vec::Vec};
+    use std::vec::Vec;
 
     use super::{Normal, Texcoord};
 
@@ -841,8 +812,8 @@ mod experimental {
 
     #[derive(Copy, Clone, Debug)]
     pub struct SoftSkin {
-        number_of_vertices: u32,
-        vertex_offset: u32,
+        pub number_of_vertices: u32,
+        pub vertex_offset: u32,
         number_of_batches: u32,
         batch_offset: u32,
         batch_primitive_offset: u32,
@@ -855,13 +826,13 @@ mod experimental {
         first_alpha_primitive_vertex_offset: i32,
         bones_per_pertex: u8,
         flags: u16,
-        display_segment_offset: u32,
-        display_list_offset: u32,
-        display_list_size: u32,
-        position_offset: u32,
-        normal_offset: u32,
-        texture_coord_offset: u32,
-        color_offset: u32,
+        pub display_segment_offset: u32,
+        pub display_list_offset: u32,
+        pub display_list_size: u32,
+        pub position_offset: u32,
+        pub normal_offset: u32,
+        pub texture_coord_offset: u32,
+        pub color_offset: u32,
         position_count: u32,
         normal_count: u32,
         morph_target_offset: u32,
@@ -871,7 +842,7 @@ mod experimental {
 
     impl SoftSkin {
         pub const SIZE: usize = 0x80;
-        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+        pub fn from_bytes(bytes: &[u8; SoftSkin::SIZE]) -> Self {
             Self {
                 number_of_vertices: u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
                 vertex_offset: u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
@@ -907,10 +878,194 @@ mod experimental {
                 vertex_normal_extra_offset: u32::from_be_bytes(bytes[96..100].try_into().unwrap()),
             }
         }
+
+        pub fn positions_from_buffer(&self, buffer: &[u8]) -> Vec<Position> {
+            let pos_start_offset = self.position_offset as usize;
+
+            if pos_start_offset == 0 {
+                panic!()
+            }
+
+            let pos_end_offset =
+                pos_start_offset + (Position::LENGTH * self.number_of_vertices as usize);
+            buffer[pos_start_offset..pos_end_offset]
+                .chunks_exact(Position::LENGTH)
+                .map(|bytes| Position::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn normals_from_buffer(&self, buffer: &[u8]) -> Vec<Normal> {
+            let norm_start_offset = self.normal_offset as usize;
+            let norm_end_offset =
+                norm_start_offset + (Normal::LENGTH * self.number_of_vertices as usize);
+            buffer[norm_start_offset..norm_end_offset]
+                .chunks_exact(Normal::LENGTH)
+                .map(|bytes| Normal::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn texcoords_from_buffer(&self, buffer: &[u8], kind: u8) -> Vec<Texcoord> {
+            let (_, _, _, number_of_texcoords) = self.max_idx(buffer, kind);
+
+            let norm_start_offset = self.texture_coord_offset as usize;
+            if norm_start_offset == 0 {
+                panic!()
+            }
+
+            let norm_end_offset =
+                norm_start_offset + (Texcoord::LENGTH * number_of_texcoords as usize + 1);
+            buffer[norm_start_offset..norm_end_offset]
+                .chunks_exact(Texcoord::LENGTH)
+                .map(|bytes| Texcoord::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+
+        pub fn display_segments_from_buffer(&self, buffer: &[u8]) -> Vec<(u32, u32)> {
+            let seg_start = self.display_segment_offset as usize;
+            let seg_end: usize = self.primitives_from_buffer(buffer).len() * 8;
+
+            buffer[seg_start..seg_start + seg_end as usize]
+                .chunks_exact(8)
+                .map(|bytes| {
+                    (
+                        u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                        u32::from_be_bytes(bytes[4..8].try_into().unwrap()),
+                    )
+                })
+                .collect()
+        }
+
+        pub fn max_idx<'a>(&'a self, buffer: &'a [u8], kind: u8) -> (u16, u16, u16, u16) {
+            let (mut max_p_idx, mut max_n_idx, mut max_t_idx, mut max_c_idx) = (0, 0, 0, 0);
+
+            let display_list_start = self.display_list_offset;
+            let display_list_end = display_list_start + self.display_list_size;
+
+            let display_list = &buffer[display_list_start as usize..display_list_end as usize];
+
+            for (offset, size) in self.display_segments_from_buffer(buffer) {
+                let offset = offset as usize;
+                let part = DisplayListPart {
+                    cmd: u16::from_be_bytes(display_list[offset..offset + 2].try_into().unwrap()),
+                    vertex_count: u16::from_be_bytes(
+                        display_list[offset + 2..offset + 4].try_into().unwrap(),
+                    ),
+                };
+
+                let mut start = offset + 5;
+
+                for _ in 0..part.vertex_count {
+                    let p_idx =
+                        u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap());
+                    let n_idx =
+                        u16::from_be_bytes(display_list[start + 2..start + 4].try_into().unwrap());
+                    let t_idx =
+                        u16::from_be_bytes(display_list[start + 4..start + 6].try_into().unwrap());
+                    let c_idx =
+                        u16::from_be_bytes(display_list[start + 6..start + 8].try_into().unwrap());
+
+                    max_p_idx = p_idx.max(max_p_idx);
+                    max_n_idx = n_idx.max(max_n_idx);
+                    max_t_idx = t_idx.max(max_t_idx);
+                    max_c_idx = c_idx.max(max_c_idx);
+                    match kind {
+                        21 => start += 1,
+                        _ => (),
+                    }
+
+                    start += 8;
+                }
+            }
+
+            (max_p_idx, max_n_idx, max_t_idx, max_c_idx)
+        }
+        pub fn batches_from_buffer(&self, buffer: &[u8]) -> Vec<MeshBatch> {
+            let batches_start_offset = self.batch_offset as usize;
+            let batches_end_offset =
+                batches_start_offset + (MeshBatch::SIZE * self.number_of_batches as usize);
+
+            buffer[batches_start_offset..batches_end_offset]
+                .chunks_exact(MeshBatch::SIZE)
+                .map(|bytes| MeshBatch::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+        pub fn primitives_from_buffer(&self, buffer: &[u8]) -> Vec<SoftSkinPrimitive> {
+            let mut primitive_count = 0;
+            for batch in self.batches_from_buffer(buffer) {
+                primitive_count += batch.number_of_primitives
+            }
+
+            let batches_start_offset = self.batch_primitive_offset as usize;
+            let batches_end_offset =
+                batches_start_offset + (SoftSkinPrimitive::SIZE * primitive_count as usize);
+
+            buffer[batches_start_offset..batches_end_offset]
+                .chunks_exact(SoftSkinPrimitive::SIZE)
+                .map(|bytes| SoftSkinPrimitive::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
+        pub fn display_list_parts_from_buffer<'a>(
+            &'a self,
+            buffer: &'a [u8],
+            kind: u8,
+        ) -> Vec<(DisplayListPart, Vec<(u16, u16, u16, u16)>)> {
+            const VERTEX_TYPE_DISPLAYLIST_INDEXED: u8 = 16;
+            const VERTEX_TYPE_1BONE_DISPLAYLIST_INDEXED: u8 = 21;
+
+            let (mut max_p_idx, mut max_n_idx, mut max_t_idx, mut max_c_idx) = (0, 0, 0, 0);
+
+            let display_list_start = self.display_list_offset;
+            let display_list_end = display_list_start + self.display_list_size;
+
+            let display_list = &buffer[display_list_start as usize..display_list_end as usize];
+
+            let mut display_list_parts = Vec::new();
+            for (offset, size) in self.display_segments_from_buffer(buffer) {
+                let offset = offset as usize;
+                let part = DisplayListPart {
+                    cmd: u16::from_be_bytes(display_list[offset..offset + 2].try_into().unwrap()),
+                    vertex_count: u16::from_be_bytes(
+                        display_list[offset + 2..offset + 4].try_into().unwrap(),
+                    ),
+                };
+
+                let mut indexes = Vec::new();
+                let mut start = offset + 4;
+                match kind {
+                    VERTEX_TYPE_1BONE_DISPLAYLIST_INDEXED => start += 1,
+                    VERTEX_TYPE_DISPLAYLIST_INDEXED | _ => (),
+                }
+
+                for _ in 0..part.vertex_count {
+                    let p_idx =
+                        u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap());
+                    let n_idx =
+                        u16::from_be_bytes(display_list[start + 2..start + 4].try_into().unwrap());
+                    let t_idx =
+                        u16::from_be_bytes(display_list[start + 4..start + 6].try_into().unwrap());
+                    let c_idx =
+                        u16::from_be_bytes(display_list[start + 6..start + 8].try_into().unwrap());
+
+                    max_p_idx = p_idx.max(max_p_idx);
+                    max_n_idx = n_idx.max(max_n_idx);
+                    max_t_idx = t_idx.max(max_t_idx);
+                    max_c_idx = c_idx.max(max_c_idx);
+
+                    indexes.push((p_idx, n_idx, t_idx, c_idx));
+                    match kind {
+                        VERTEX_TYPE_1BONE_DISPLAYLIST_INDEXED => start += 1,
+                        VERTEX_TYPE_DISPLAYLIST_INDEXED | _ => (),
+                    }
+                    start += 8;
+                }
+                display_list_parts.push((part, indexes));
+            }
+            display_list_parts
+        }
     }
 
     #[derive(Copy, Clone, Debug)]
-    pub struct Actor {
+    pub struct Actor<Data> {
         resource_info: ResourceInfo,
         soft_skin: SoftSkin,
         pub root_actor_node_offset: u32,
@@ -928,7 +1083,7 @@ mod experimental {
         z_min: f32,
         z_max: f32,
         matrix_palette_size: u8,
-        vertex_type: u8,
+        pub vertex_type: u8,
         draw_sync: u16,
         anim_event_data_offset: u32,
         anim_segment_names_offset: u32,
@@ -938,48 +1093,99 @@ mod experimental {
         light_map_format: u8,
         number_of_nodes: u8,
         blend_mode_flags: u8,
+        pub data: Data,
     }
 
-    impl Actor {
+    impl<Data: AsRef<[u8]>> Actor<Data> {
         pub const SIZE: usize = 0xF4;
-        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+        pub fn from_bytes(bytes: &[u8; 0xF4], data: Data) -> Self {
             Self {
                 resource_info: ResourceInfo::from_bytes(
-                    bytes[0..ResourceInfo::SIZE].try_into().unwrap(),
+                    bytes.as_ref()[0..ResourceInfo::SIZE].try_into().unwrap(),
                 ),
                 soft_skin: SoftSkin::from_bytes(
-                    bytes[ResourceInfo::SIZE..ResourceInfo::SIZE + SoftSkin::SIZE]
+                    bytes.as_ref()[ResourceInfo::SIZE..ResourceInfo::SIZE + SoftSkin::SIZE]
                         .try_into()
                         .unwrap(),
                 ),
-                root_actor_node_offset: u32::from_be_bytes(bytes[160..164].try_into().unwrap()),
-                flags: u32::from_be_bytes(bytes[164..168].try_into().unwrap()),
-                last_frame: u32::from_be_bytes(bytes[168..172].try_into().unwrap()),
-                max_primitive_vertex_count: i32::from_be_bytes(bytes[172..176].try_into().unwrap()),
-                max_total_primitive_vertex_count: i32::from_be_bytes(
-                    bytes[176..180].try_into().unwrap(),
+                root_actor_node_offset: u32::from_be_bytes(
+                    bytes.as_ref()[160..164].try_into().unwrap(),
                 ),
-                anim_segment_offset: u32::from_be_bytes(bytes[180..184].try_into().unwrap()),
-                number_of_anim_segments: u32::from_be_bytes(bytes[184..188].try_into().unwrap()),
-                max_radius: f32::from_be_bytes(bytes[188..192].try_into().unwrap()),
-                x_min: f32::from_be_bytes(bytes[192..196].try_into().unwrap()),
-                x_max: f32::from_be_bytes(bytes[196..200].try_into().unwrap()),
-                y_min: f32::from_be_bytes(bytes[200..204].try_into().unwrap()),
-                y_max: f32::from_be_bytes(bytes[204..208].try_into().unwrap()),
-                z_min: f32::from_be_bytes(bytes[208..212].try_into().unwrap()),
-                z_max: f32::from_be_bytes(bytes[212..216].try_into().unwrap()),
-                matrix_palette_size: bytes[216],
-                vertex_type: bytes[217],
-                draw_sync: u16::from_be_bytes(bytes[218..220].try_into().unwrap()),
-                anim_event_data_offset: u32::from_be_bytes(bytes[220..224].try_into().unwrap()),
-                anim_segment_names_offset: u32::from_be_bytes(bytes[224..228].try_into().unwrap()),
-                node_names_offset: u32::from_be_bytes(bytes[228..232].try_into().unwrap()),
-                last_frame_count: u32::from_be_bytes(bytes[232..236].try_into().unwrap()),
-                actor_nodes_offset: u32::from_be_bytes(bytes[236..240].try_into().unwrap()),
-                light_map_format: bytes[240],
-                number_of_nodes: bytes[241],
-                blend_mode_flags: bytes[242],
+                flags: u32::from_be_bytes(bytes.as_ref()[164..168].try_into().unwrap()),
+                last_frame: u32::from_be_bytes(bytes.as_ref()[168..172].try_into().unwrap()),
+                max_primitive_vertex_count: i32::from_be_bytes(
+                    bytes.as_ref()[172..176].try_into().unwrap(),
+                ),
+                max_total_primitive_vertex_count: i32::from_be_bytes(
+                    bytes.as_ref()[176..180].try_into().unwrap(),
+                ),
+                anim_segment_offset: u32::from_be_bytes(
+                    bytes.as_ref()[180..184].try_into().unwrap(),
+                ),
+                number_of_anim_segments: u32::from_be_bytes(
+                    bytes.as_ref()[184..188].try_into().unwrap(),
+                ),
+                max_radius: f32::from_be_bytes(bytes.as_ref()[188..192].try_into().unwrap()),
+                x_min: f32::from_be_bytes(bytes.as_ref()[192..196].try_into().unwrap()),
+                x_max: f32::from_be_bytes(bytes.as_ref()[196..200].try_into().unwrap()),
+                y_min: f32::from_be_bytes(bytes.as_ref()[200..204].try_into().unwrap()),
+                y_max: f32::from_be_bytes(bytes.as_ref()[204..208].try_into().unwrap()),
+                z_min: f32::from_be_bytes(bytes.as_ref()[208..212].try_into().unwrap()),
+                z_max: f32::from_be_bytes(bytes.as_ref()[212..216].try_into().unwrap()),
+                matrix_palette_size: bytes.as_ref()[216],
+                vertex_type: bytes.as_ref()[217],
+                draw_sync: u16::from_be_bytes(bytes.as_ref()[218..220].try_into().unwrap()),
+                anim_event_data_offset: u32::from_be_bytes(
+                    bytes.as_ref()[220..224].try_into().unwrap(),
+                ),
+                anim_segment_names_offset: u32::from_be_bytes(
+                    bytes.as_ref()[224..228].try_into().unwrap(),
+                ),
+                node_names_offset: u32::from_be_bytes(bytes.as_ref()[228..232].try_into().unwrap()),
+                last_frame_count: u32::from_be_bytes(bytes.as_ref()[232..236].try_into().unwrap()),
+                actor_nodes_offset: u32::from_be_bytes(
+                    bytes.as_ref()[236..240].try_into().unwrap(),
+                ),
+                light_map_format: bytes.as_ref()[240],
+                number_of_nodes: bytes.as_ref()[241],
+                blend_mode_flags: bytes.as_ref()[242],
+                data,
             }
+        }
+
+        pub fn soft_skin(&self) -> SoftSkin {
+            self.soft_skin
+        }
+
+        pub fn nodes(&self) -> Vec<ActorNode> {
+            let mut vec = Vec::with_capacity(self.number_of_nodes as usize);
+
+            let root_node = self.root_node();
+            vec.push(root_node);
+
+            let mut next_node_offset = root_node.next_actor_node_offset;
+            let mut cur_node_offset = 0;
+            while next_node_offset != 0 && cur_node_offset != next_node_offset {
+                let node = ActorNode::from_bytes(
+                    self.data.as_ref()
+                        [next_node_offset as usize..next_node_offset as usize + ActorNode::SIZE]
+                        .try_into()
+                        .unwrap(),
+                );
+                cur_node_offset = next_node_offset;
+                next_node_offset = node.next_actor_node_offset;
+            }
+            vec
+        }
+
+        pub fn root_node(&self) -> ActorNode {
+            let node = ActorNode::from_bytes(
+                self.data.as_ref()[self.root_actor_node_offset as usize
+                    ..self.root_actor_node_offset as usize + 0x134]
+                    .try_into()
+                    .unwrap(),
+            );
+            return node;
         }
     }
 
@@ -1120,7 +1326,7 @@ mod experimental {
         flags: u32,
         position_offset: u32,
         normal_offset: u32,
-        texture_coord_offset: u32,
+        pub texture_coord_offset: u32,
         color_offset: u32,
         display_list_offset: u32,
         display_list_size: u32,
@@ -1198,6 +1404,11 @@ mod experimental {
 
         pub fn positions_from_buffer(&self, buffer: &[u8]) -> Vec<Position> {
             let pos_start_offset = self.position_offset as usize;
+
+            if (pos_start_offset == 0) {
+                panic!()
+            }
+
             let pos_end_offset =
                 pos_start_offset + (Position::LENGTH * self.number_of_vertices as usize);
             buffer[pos_start_offset..pos_end_offset]
@@ -1215,6 +1426,22 @@ mod experimental {
                 .map(|bytes| Normal::from_bytes(bytes.try_into().unwrap()))
                 .collect()
         }
+        pub fn texcoords_from_buffer(&self, buffer: &[u8]) -> Vec<Texcoord> {
+            let (_, _, _, number_of_texcoords) = self.max_idx(buffer);
+
+            let norm_start_offset = self.texture_coord_offset as usize;
+
+            if (norm_start_offset == 0) {
+                panic!()
+            }
+
+            let norm_end_offset =
+                norm_start_offset + (Texcoord::LENGTH * number_of_texcoords as usize + 1);
+            buffer[norm_start_offset..norm_end_offset]
+                .chunks_exact(Texcoord::LENGTH)
+                .map(|bytes| Texcoord::from_bytes(bytes.try_into().unwrap()))
+                .collect()
+        }
 
         pub fn display_segments_from_buffer(&self, buffer: &[u8]) -> Vec<(u32, u32)> {
             let seg_start = self.display_segments_offset as usize;
@@ -1229,6 +1456,46 @@ mod experimental {
                     )
                 })
                 .collect()
+        }
+
+        pub fn max_idx<'a>(&'a self, buffer: &'a [u8]) -> (u16, u16, u16, u16) {
+            let (mut max_p_idx, mut max_n_idx, mut max_t_idx, mut max_c_idx) = (0, 0, 0, 0);
+
+            let display_list_start = self.display_list_offset;
+            let display_list_end = display_list_start + self.display_list_size;
+
+            let display_list = &buffer[display_list_start as usize..display_list_end as usize];
+
+            for (offset, size) in self.display_segments_from_buffer(buffer) {
+                let offset = offset as usize;
+                let part = DisplayListPart {
+                    cmd: u16::from_be_bytes(display_list[offset..offset + 2].try_into().unwrap()),
+                    vertex_count: u16::from_be_bytes(
+                        display_list[offset + 2..offset + 4].try_into().unwrap(),
+                    ),
+                };
+
+                let mut start = offset + 4;
+                for _ in 0..part.vertex_count {
+                    let p_idx =
+                        u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap());
+                    let n_idx =
+                        u16::from_be_bytes(display_list[start + 2..start + 4].try_into().unwrap());
+                    let t_idx =
+                        u16::from_be_bytes(display_list[start + 4..start + 6].try_into().unwrap());
+                    let c_idx =
+                        u16::from_be_bytes(display_list[start + 6..start + 8].try_into().unwrap());
+
+                    max_p_idx = p_idx.max(max_p_idx);
+                    max_n_idx = n_idx.max(max_n_idx);
+                    max_t_idx = t_idx.max(max_t_idx);
+                    max_c_idx = c_idx.max(max_c_idx);
+
+                    start += 8;
+                }
+            }
+
+            (max_p_idx, max_n_idx, max_t_idx, max_c_idx)
         }
 
         pub fn display_list_parts_from_buffer<'a>(
@@ -1276,7 +1543,6 @@ mod experimental {
                 }
                 display_list_parts.push((part, indexes));
             }
-            println!("{}, {}, {}, {}", max_p_idx, max_n_idx, max_t_idx, max_c_idx);
             display_list_parts
         }
     }
@@ -1315,6 +1581,30 @@ mod experimental {
         flags: u8,
         pub number_of_vertices: u16,
         pub number_of_draw_primitives: u16,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SoftSkinPrimitive {
+        primtive_type: u8,
+        flags: u8,
+        pub number_of_vertices: u16,
+        pub number_of_matricies: u8,
+        pub number_of_draw_primitives: u8,
+        pub matrix_indices: [u8; 10],
+    }
+
+    impl SoftSkinPrimitive {
+        pub const SIZE: usize = 0x12;
+        pub fn from_bytes(bytes: [u8; Self::SIZE]) -> Self {
+            Self {
+                primtive_type: bytes[0],
+                flags: bytes[1],
+                number_of_vertices: u16::from_be_bytes(bytes[2..4].try_into().unwrap()),
+                number_of_matricies: bytes[4],
+                number_of_draw_primitives: bytes[5],
+                matrix_indices: bytes[8..18].try_into().unwrap(),
+            }
+        }
     }
 
     impl MeshPrimitive {
@@ -1413,7 +1703,7 @@ mod experimental {
         crc: u32,
         number_of_actor_animation_events: i32,
         pub actor_info: ActorInfo,
-        next_actor_node_offset: u32,
+        pub next_actor_node_offset: u32,
         prev_actor_node_offset: u32,
         parent_actor_node_offset: u32,
         child_actor_node_offset: u32,
@@ -1426,7 +1716,7 @@ mod experimental {
 
     impl ActorNode {
         pub const SIZE: usize = 0x134;
-        pub fn from_bytes(bytes: &[u8; Self::SIZE]) -> Self {
+        pub fn from_bytes(bytes: &[u8; 0x134]) -> ActorNode {
             Self {
                 position_quantisation_node: AnimationQuantisation3::from_bytes(
                     bytes[0..32].try_into().unwrap(),
@@ -1458,14 +1748,10 @@ mod experimental {
         }
 
         pub fn name_from_buffer<'a>(&'a self, buffer: &'a [u8]) -> &'a str {
-            CStr::from_bytes_until_nul(
-                buffer[self.name_offset as usize..self.name_offset as usize + 0x10]
-                    .try_into()
-                    .unwrap(),
-            )
-            .unwrap()
-            .to_str()
-            .unwrap()
+            CStr::from_bytes_until_nul(buffer[self.name_offset as usize..].try_into().unwrap())
+                .unwrap()
+                .to_str()
+                .unwrap()
         }
     }
 }
