@@ -1502,8 +1502,6 @@ pub mod experimental {
             &'a self,
             buffer: &'a [u8],
         ) -> Vec<(DisplayListPart, Vec<(u16, u16, u16, u16)>)> {
-            let (mut max_p_idx, mut max_n_idx, mut max_t_idx, mut max_c_idx) = (0, 0, 0, 0);
-
             let display_list_start = self.display_list_offset;
             let display_list_end = display_list_start + self.display_list_size;
 
@@ -1531,12 +1529,6 @@ pub mod experimental {
                         u16::from_be_bytes(display_list[start + 4..start + 6].try_into().unwrap());
                     let c_idx =
                         u16::from_be_bytes(display_list[start + 6..start + 8].try_into().unwrap());
-
-                    max_p_idx = p_idx.max(max_p_idx);
-                    max_n_idx = n_idx.max(max_n_idx);
-                    max_t_idx = t_idx.max(max_t_idx);
-                    max_c_idx = c_idx.max(max_c_idx);
-
                     indexes.push((p_idx, n_idx, t_idx, c_idx));
 
                     start += 8;
@@ -1557,9 +1549,9 @@ pub mod experimental {
 
     #[derive(Copy, Clone, Debug)]
     pub struct MeshBatch {
-        number_of_primitives: i32,
-        texture_1_crc: u32,
-        texture_2_crc: u32,
+        pub number_of_primitives: i32,
+        pub texture_1_crc: u32,
+        pub texture_2_crc: u32,
         flags: u32,
     }
 

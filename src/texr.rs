@@ -17,16 +17,23 @@ impl<Data: AsRef<[u8]>> TexrReader<Data> {
             .ok_or(ParseError::UnexpectedEnd)?;
         let header = Header::from_bytes(header_data.try_into().unwrap())?;
 
-        if header.img_start_offset > header.img_start_offset + header.img_end_offset
+        let header_size = header
+            .img_start_offset
+            .checked_add(header.img_end_offset)
+            .ok_or(ParseError::UnexpectedEnd)?;
+
+        if header.img_start_offset > header_size
             || usize::try_from(header.img_end_offset).unwrap() > input.as_ref().len()
         {
             return Err(ParseError::UnexpectedEnd);
         }
 
-        if header.tlut_offset != 0
-            && header.tlut_offset
-                > header.tlut_offset + (header.img_start_offset - header.tlut_offset)
-        {
+        let start_offset = header
+            .img_start_offset
+            .checked_sub(header.tlut_offset)
+            .ok_or(ParseError::UnexpectedEnd)?;
+
+        if header.tlut_offset != 0 && header.tlut_offset > header.tlut_offset + start_offset {
             return Err(ParseError::UnexpectedEnd);
         }
 
