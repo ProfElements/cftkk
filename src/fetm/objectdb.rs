@@ -1,3 +1,5 @@
+pub mod transform;
+
 pub struct Reader<Data: AsRef<[u8]>> {
     data: Data,
 }
@@ -234,7 +236,7 @@ pub enum NodeType {}
 #[derive(Copy, Clone, Debug)]
 pub struct Node<'a> {
     pub kind: &'a str,
-    name: &'a str,
+    pub name: &'a str,
     entity_class: EntityClass<'a>,
     pub tokens: &'a [Token<'a>],
 }
@@ -282,12 +284,17 @@ const NODE_TYPE_LIST: &[&str] = &[
 ];
 
 impl<'a> Node<'a> {
-    pub fn from_tokens(tokens: &'a [Token]) -> Node<'a> {
+    pub fn from_tokens(tokens: &'a [Token]) -> Option<Node<'a>> {
         let Token::String(kind) = tokens[0] else {
-            panic!()
+            std::println!("Expected string found {:?}", tokens[1]);
+            return None;
         };
+
+        std::println!("{kind}");
+
         let Token::String(name) = tokens[1] else {
-            panic!()
+            std::println!("Expected string found {:?}", tokens[1]);
+            return None;
         };
 
         let entity_class = EntityClass::from_tokens(&tokens[2..]);
@@ -305,15 +312,53 @@ impl<'a> Node<'a> {
             .and_then(|count| Some(count + node_tokens_start))
             .unwrap_or(tokens.len() - 1);
 
-        Node {
+        Some(Node {
             kind,
             name,
             entity_class,
             tokens: &tokens[node_tokens_start..node_tokens_end],
-        }
+        })
     }
 
     pub fn len(&self) -> usize {
         2 + self.entity_class.len() + self.tokens.len()
+    }
+}
+
+mod flags {
+    use bitflags::bitflags;
+
+    bitflags! {
+        pub struct WorldNodeFlags: u32 {
+            const USER_FLAG_1 = 1 << 0;
+            const USER_FLAG_2 = 1 << 1;
+            const USER_FLAG_3 = 1 << 2;
+            const USER_FLAG_4 = 1 << 3;
+            const USER_FLAG_5 = 1 << 4;
+            const USER_FLAG_6 = 1 << 5;
+            const USER_FLAG_7 = 1 << 6;
+            const USER_FLAG_8 = 1 << 7;
+            const VISIBLE = 1 << 8;
+            const ENABLED = 1 << 9;
+            const IS_STATIC = 1 << 10;
+            const PAUSE_WHEN_NOT_VISIBLE = 1 << 11;
+            const PORTAL_TESTS = 1 << 12;
+            const PAUSE_WHEN_ROOM_NOT_VISIBLE = 1 << 13;
+            const PAUSE_WHEN_SECTOR_NOT_VISIBLE = 1 << 14;
+            const PAUSE_WHEN_ROOM_NOT_CURRENT = 1 << 15;
+            const PAUSE_WHEN_SECTOR_NOT_CURRENT = 1 << 16;
+            const PAUSE_WHEN_NOT_LOADED = 1 << 17;
+            const CUSTOM_BOUNDING_BOX = 1 << 18;
+            const ADVANCED = 1 << 19;
+            const ACTION_LIST_ENABLED = 1 << 20;
+            const TIMER_ACTIVE = 1 << 21;
+            const REGISTERED = 1 << 22;
+            const MISSING_ENTITY_CLASS = 1 << 23;
+            const VOLATILE_BOUNDING_BOX = 1 << 24;
+            const HIDE_WHEN_ROOM_NOT_CURRENT = 1 << 25;
+            const DONT_SET_RENDER_STATES = 1 << 26;
+            const USE_BOUNDING_BOX_CENTRE = 1 << 27;
+            const JUST_REPLICATED = 1 << 28;
+        }
     }
 }

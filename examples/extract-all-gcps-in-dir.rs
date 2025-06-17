@@ -47,7 +47,8 @@ fn main() {
                                     let _ = std::fs::write(path.join(name), file.data);
                                 }
 
-                                _ => {
+                                tag => {
+                                    println!("{tag:?}");
                                     let _ = std::fs::write(path.join(file.name), file.data);
                                 }
                             }

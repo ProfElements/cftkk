@@ -6,7 +6,8 @@ use cftkk::{
     gcp::{GcpReader, Tag},
     texr::TexrReader,
 };
-use std::{env, fs};
+use gctex::TextureFormat;
+use std::{env, fs, io::BufWriter};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -23,7 +24,7 @@ fn main() {
                 if let Ok(file_type) = dir_entry.file_type() {
                     if file_type.is_file() {
                         if let Some(ext) = dir_entry.path().extension() {
-                            if ext == "gcp" {
+                            if ext == "gcp" || ext == "rev" {
                                 std::println!("Current Package: {:?}", dir_entry.path());
                                 if let Ok(gcp) = GcpReader::new(fs::read(dir_entry.path()).unwrap())
                                 {
@@ -53,14 +54,79 @@ fn main() {
                                             && !resource.name.contains(".sys")
                                         {
                                             if let Ok(texr) = TexrReader::new(resource.data) {
-                                                /* println!(
+                                                println!(
                                                     "Name: {}, Width: {}, Height: {}, Data length: {}. format: {:?}",
                                                     resource.name,
                                                     texr.header().width,
                                                     texr.header().height,
                                                     texr.image_data().len(),
                                                     texr.header().texr_format
-                                                );*/
+                                                );
+
+                                                let format = match texr.header().texr_format {
+                                                    cftkk::texr::Format::Rgba8 => {
+                                                        TextureFormat::RGBA8
+                                                    }
+                                                    cftkk::texr::Format::Rgb5a3 => {
+                                                        TextureFormat::RGB5A3
+                                                    }
+                                                    cftkk::texr::Format::Ci8Rgb565 => {
+                                                        TextureFormat::C8
+                                                    }
+                                                    cftkk::texr::Format::Ci8Rgb5a3 => {
+                                                        TextureFormat::C8
+                                                    }
+                                                    cftkk::texr::Format::Ci4Rgb565 => {
+                                                        TextureFormat::C4
+                                                    }
+                                                    cftkk::texr::Format::Ci4Rgb5a3 => {
+                                                        TextureFormat::C4
+                                                    }
+                                                    cftkk::texr::Format::Cmpr => {
+                                                        TextureFormat::CMPR
+                                                    }
+                                                    cftkk::texr::Format::I4 => TextureFormat::I4,
+                                                    cftkk::texr::Format::Rgb565 => {
+                                                        TextureFormat::RGB565
+                                                    }
+                                                    cftkk::texr::Format::I8 => TextureFormat::I8,
+                                                };
+
+                                                let tlut_format: u32 =
+                                                    match texr.header().texr_format {
+                                                        cftkk::texr::Format::Ci8Rgb5a3
+                                                        | cftkk::texr::Format::Ci4Rgb5a3 => 2,
+                                                        cftkk::texr::Format::Ci4Rgb565
+                                                        | cftkk::texr::Format::Ci8Rgb565 => 1,
+                                                        _ => 0,
+                                                    };
+
+                                                let data = gctex::decode(
+                                                    texr.image_data(),
+                                                    texr.header().width,
+                                                    texr.header().height,
+                                                    format,
+                                                    texr.texture_lookup_data().unwrap_or(&[]),
+                                                    tlut_format,
+                                                );
+
+                                                let mut encoder = png::Encoder::new(
+                                                    BufWriter::new(
+                                                        std::fs::File::create(format!(
+                                                            "{}.png",
+                                                            resource.name
+                                                        ))
+                                                        .unwrap(),
+                                                    ),
+                                                    texr.header().width,
+                                                    texr.header().height,
+                                                );
+
+                                                encoder.set_color(png::ColorType::Rgba);
+                                                encoder.set_depth(png::BitDepth::Eight);
+
+                                                let mut write = encoder.write_header().unwrap();
+                                                write.write_image_data(&data).unwrap();
                                             }
                                         }
 
@@ -243,7 +309,7 @@ fn main() {
                                                         }
                                                     }
                                                 }
-                                            }
+                                            };
                                         }
                                     }
                                 }

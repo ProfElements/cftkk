@@ -10,6 +10,10 @@ pub mod fetm;
 pub mod gcp;
 pub mod texr;
 
+pub mod collision_mesh;
+pub mod package;
+pub mod resource;
+
 #[derive(Copy, Clone, Debug)]
 pub enum ParseError {
     UnexpectedEnd,
