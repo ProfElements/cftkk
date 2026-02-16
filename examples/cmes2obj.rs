@@ -27,7 +27,7 @@ fn main() {
     string.push_str(format!("o {}\n", &args[1]).as_str());
 
     for vertex in cmes.vertices().unwrap() {
-        string.push_str(format!("v {} {} {}\n", -(vertex.x), vertex.y, vertex.z).as_str());
+        string.push_str(format!("v {} {} {}\n", vertex.x, vertex.y, vertex.z).as_str());
     }
 
     for normal in cmes.normals().unwrap() {

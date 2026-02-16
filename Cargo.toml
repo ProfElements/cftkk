@@ -5,7 +5,7 @@ edition = "2021"
 
 [dev-dependencies]
 serde_json = "1.0"
-gctex = { version = "0.3", default-features = false }
+gctex = { version = "0.3" }
 png = "0.17.9"
 glam = "0.30"
 

@@ -1,4 +1,4 @@
-#![feature(array_windows, array_chunks)]
+#![feature(array_windows)]
 
 use std::{
     env, fs,
@@ -67,7 +67,7 @@ pub fn export_actor(name: &'_ str) -> Result<(), ()> {
             let display_list_parts =
                 skin.display_list_parts_from_buffer(actor.data, actor.vertex_type);
 
-            obj.push_str(format!("mtllib {}.mtl\n", name).as_str());
+            obj.push_str(format!("mtllib {}.mtl\n", name.split("/").last().unwrap()).as_str());
             obj.push_str(format!("o skin\n",).as_str());
 
             let material_ranges = blah(&skin, actor.data);

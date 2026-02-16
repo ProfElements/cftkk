@@ -202,7 +202,6 @@ impl<Data: AsRef<[u8]>> ActrReader<Data> {
 
         //TODO: Hacky workaround to find size, there is probably a size a somewhere
         let texcoord_end_offset = usize::try_from(self.header.vertex_buffer_offset).unwrap();
-
         let texcoord_bytes = self
             .input
             .as_ref()
@@ -778,7 +777,7 @@ something16 some[node[0].some_count] @ node[0].some_offset;
 
 pub mod experimental {
     use core::ffi::CStr;
-    use std::vec::Vec;
+    use std::{println, vec::Vec};
 
     use super::{Normal, Texcoord};
 
@@ -907,14 +906,20 @@ pub mod experimental {
         pub fn texcoords_from_buffer(&self, buffer: &[u8], kind: u8) -> Vec<Texcoord> {
             let (_, _, _, number_of_texcoords) = self.max_idx(buffer, kind);
 
-            let norm_start_offset = self.texture_coord_offset as usize;
-            if norm_start_offset == 0 {
+            let texture_coords_begin = usize::try_from(self.texture_coord_offset).unwrap();
+            if texture_coords_begin == 0 {
                 panic!()
             }
 
-            let norm_end_offset =
-                norm_start_offset + (Texcoord::LENGTH * number_of_texcoords as usize + 1);
-            buffer[norm_start_offset..norm_end_offset]
+            let texture_coords_end = texture_coords_begin
+                + Texcoord::LENGTH * usize::try_from(number_of_texcoords).unwrap();
+            println!(
+                "start: {}, end: {}",
+                texture_coords_begin, texture_coords_end
+            );
+            buffer
+                .get(texture_coords_begin..texture_coords_end)
+                .unwrap()
                 .chunks_exact(Texcoord::LENGTH)
                 .map(|bytes| Texcoord::from_bytes(bytes.try_into().unwrap()))
                 .collect()
@@ -953,8 +958,22 @@ pub mod experimental {
                 };
 
                 let mut start = offset + 5;
+                match kind {
+                    25 => start = start - 1,
+                    _ => (),
+                }
+
+                std::println!(
+                    "value {:?}",
+                    u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap())
+                );
 
                 for _ in 0..part.vertex_count {
+                    match kind {
+                        25 => start += 2,
+                        _ => (),
+                    }
+
                     let p_idx =
                         u16::from_be_bytes(display_list[start..start + 2].try_into().unwrap());
                     let n_idx =
@@ -970,8 +989,18 @@ pub mod experimental {
                     max_c_idx = c_idx.max(max_c_idx);
                     match kind {
                         21 => start += 1,
+                        //25 => start += 2,
                         _ => (),
                     }
+                    // match kind {
+                    //     25 => start += 2,
+                    //     _ => (),
+                    // }
+
+                    // std::println!(
+                    //     "{p_idx}, {n_idx}, {t_idx}, {c_idx}, {:?}",
+                    //     u16::from_be_bytes(display_list[start + 8..start + 10].try_into().unwrap())
+                    // );
 
                     start += 8;
                 }
@@ -1033,7 +1062,9 @@ pub mod experimental {
                 let mut start = offset + 4;
                 match kind {
                     VERTEX_TYPE_1BONE_DISPLAYLIST_INDEXED => start += 1,
-                    VERTEX_TYPE_DISPLAYLIST_INDEXED | _ => (),
+                    VERTEX_TYPE_DISPLAYLIST_INDEXED => (),
+                    25 => start += 2,
+                    _ => (),
                 }
 
                 for _ in 0..part.vertex_count {
@@ -1054,7 +1085,9 @@ pub mod experimental {
                     indexes.push((p_idx, n_idx, t_idx, c_idx));
                     match kind {
                         VERTEX_TYPE_1BONE_DISPLAYLIST_INDEXED => start += 1,
-                        VERTEX_TYPE_DISPLAYLIST_INDEXED | _ => (),
+                        VERTEX_TYPE_DISPLAYLIST_INDEXED => (),
+                        25 => start += 2,
+                        _ => (),
                     }
                     start += 8;
                 }
@@ -1179,13 +1212,19 @@ pub mod experimental {
         }
 
         pub fn root_node(&self) -> ActorNode {
-            let node = ActorNode::from_bytes(
-                self.data.as_ref()[self.root_actor_node_offset as usize
-                    ..self.root_actor_node_offset as usize + 0x134]
-                    .try_into()
-                    .unwrap(),
+            let root_node_begin = usize::try_from(self.root_actor_node_offset).unwrap();
+            let root_node_end = root_node_begin + ActorNode::LENGTH;
+            std::println!(
+                "start: {root_node_begin}, end: {root_node_end}, size: {}",
+                self.data.as_ref().len()
             );
-            return node;
+            let root_node_bytes = self
+                .data
+                .as_ref()
+                .get(root_node_begin..root_node_end)
+                .unwrap();
+
+            ActorNode::from_bytes(root_node_bytes.try_into().unwrap())
         }
     }
 
@@ -1708,6 +1747,7 @@ pub mod experimental {
 
     impl ActorNode {
         pub const SIZE: usize = 0x134;
+        pub const LENGTH: usize = 0x134;
         pub fn from_bytes(bytes: &[u8; 0x134]) -> ActorNode {
             Self {
                 position_quantisation_node: AnimationQuantisation3::from_bytes(
