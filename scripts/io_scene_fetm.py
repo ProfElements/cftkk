@@ -256,6 +256,39 @@ class EntityClassKind(StrEnum):
     TARGET_POINT_LIST_EFFECT = 'Target Point List Effect'
     FLYING_HOVER_ENEMY = 'Flying Hover Enemy'
     REACTIVE_OBJECT_BOSS_FLASHER = 'Reactive Object Boss Flasher'
+    SPHERE_LIGHT_EFFECT = 'Sphere Light Effect'
+    PROP_FUEL_PICKUP = 'Prop Fuel Pickup'
+    PROP_REGEN_FUEL_PICKUP = 'Prop Regen Fuel Pickup'
+    SPRITE_PICKUP_SNOOZEZ_MEDIUM_REGEN = 'Sprite Pickup SnoozeZ Medium Regen'
+    SPRITE_PICKUP_SNOOZEZ_10_MEDIUM_REGEN = 'Sprite Pickup SnoozeZ 10 Medium Regen'
+    SPRITE_PICKUP_SNOOZEZ_MEDIUM = 'Sprite Pickup SnoozeZ Medium'
+    SPRITE_PICKUP_SNOOZEZ_10_MEDIUM = 'Sprite Pickup SnoozeZ 10 Medium'
+    DRIVING_SPEEDUP_PAD = 'Driving Speedup Pad'
+    DRIVING_CAMERA = 'Driving Camera'
+    VARIABLE_COLON_ALIGNED_TIMER = 'Variable Colon Aligned Timer'
+    DRIVING_GENERAL_MESSAGE_OVERLAY_SET = 'Driving General Message Overlay Set'
+    DRIVING_COUNTDOWN_OVERLAY = 'Driving Countdown Overlay'
+    HOTROD_SMOKE_EFFECT = 'HotRod Smoke Effect'
+    SKIDMARK_EFFECT = 'Skidmark Effect'
+    DRIVING_OPPONENT = 'Driving Opponent'
+    SPRITE_PICKUP_SNOOZEZ_LARGE = 'Sprite Pickup SnoozeZ Large'
+    SELECTABLE_CHARACTER = 'Selectable Character'
+    CHARACTER_SELECTION_CONTROLLER = 'Character Selection Controller'
+    FULL_FRONTEND_OVERLAY = 'FullFrontEndOverlay'
+    GAME_CREDITS_OVERLAY = 'Game Credits Overlay'
+    ROOFTOP_SHRINKRAY = 'RoofTop ShrinkRay'
+    ROOFTOP_SATELLITE = 'RoofTop Satellite'
+    ROOFTOP_PLANKTON = 'RoofTop Plankton'
+    ROOFTOP_PROJECTILE = 'Rooftop Projectile'
+    ROOFTOP_MANAGER = 'RoofTop Manager'
+    ROOFTOP_BREAKABLE_WINDOW = 'RoofTop Breakable Window'
+    REF_POINT_SPRITE_ASTEROID = 'Ref Point Sprite Asteroid'
+    MINI_GAME_OVERLAY_SET = 'Mini Game Overlay Set'
+    OVERLAY_FRONTEND_BUBBLE_LABEL = 'Overlay FrontEnd Bubble Label'
+    PROP_LOCKED_FRONTEND_MENU_BUBBLE = 'Prop Locked Frontend Menu Bubble'
+    PROP_FRONTEND_MENU_BUBBLE = 'Prop FrontEnd Menu Bubble'
+    GROUP_FRONTEND_MENU = 'Group FrontEnd Menu'
+    BUBBLE_PARTICLE_SYSTEM = 'BubbleParticleSystem'
 
     def size(self) -> int:
         if self == EntityClassKind.TRIGGER_BOX_CHECKPOINT:
@@ -523,7 +556,7 @@ class EntityClassKind(StrEnum):
         elif self == EntityClassKind.TETHERED_ENEMY:
             return EntityClassKind.PLATFORM_ENEMY.size() + 5
         elif self == EntityClassKind.CHAIN_EFFECT:
-            return 1 + 4 + 17
+            return 1 + 4 + 16
         elif self == EntityClassKind.TRIGGER_BOX_DEATHBOX:
             return EntityClassKind.TRIGGER_BOX.size() + 1
         elif self == EntityClassKind.TRIGGER_BOX_CAMERA_HINT:
@@ -618,6 +651,72 @@ class EntityClassKind(StrEnum):
             return 1 + 4 + 5
         elif self == EntityClassKind.REACTIVE_OBJECT_BOSS_FLASHER:
             return EntityClassKind.REACTIVE_OBJECT.size() + 1
+        elif self == EntityClassKind.SPHERE_LIGHT_EFFECT:
+            return EntityClassKind.TINT_VOLUME_EFFECT.size() + 1
+        elif self == EntityClassKind.PROP_FUEL_PICKUP:
+            return EntityClassKind.PROP_PICKUP.size()
+        elif self == EntityClassKind.PROP_REGEN_FUEL_PICKUP:
+            return EntityClassKind.PROP_FUEL_PICKUP.size()
+        elif self == EntityClassKind.SPRITE_PICKUP_SNOOZEZ_MEDIUM_REGEN:
+            return EntityClassKind.SPRITE_PICKUP_SNOOZEZ_MEDIUM.size()
+        elif self == EntityClassKind.SPRITE_PICKUP_SNOOZEZ_MEDIUM:
+            return EntityClassKind.SPRITE_PICKUP.size()
+        elif self == EntityClassKind.DRIVING_SPEEDUP_PAD:
+            return EntityClassKind.GAME_OBJECT.size() + 3
+        elif self == EntityClassKind.SPRITE_PICKUP_SNOOZEZ_10_MEDIUM_REGEN:
+            return EntityClassKind.SPRITE_PICKUP_SNOOZEZ_10_MEDIUM.size()
+        elif self == EntityClassKind.SPRITE_PICKUP_SNOOZEZ_10_MEDIUM:
+            return EntityClassKind.SPRITE_PICKUP.size()
+        elif self == EntityClassKind.DRIVING_CAMERA:
+            return EntityClassKind.CAMERA_BASE.size() + 5
+        elif self == EntityClassKind.VARIABLE_COLON_ALIGNED_TIMER:
+            return EntityClassKind.VARIABLE_OVERLAY_SET.size() + 3
+        elif self == EntityClassKind.DRIVING_GENERAL_MESSAGE_OVERLAY_SET:
+            return 1 + 4 + 2
+        elif self == EntityClassKind.DRIVING_COUNTDOWN_OVERLAY:
+            return 1 + 4 + 2
+        elif self == EntityClassKind.HOTROD_SMOKE_EFFECT:
+            return 1 + 4 + 36
+        elif self == EntityClassKind.SKIDMARK_EFFECT:
+            return 1 + 4 + 3
+        elif self == EntityClassKind.DRIVING_OPPONENT:
+            return EntityClassKind.CHARACTER.size() + 4
+        elif self == EntityClassKind.SPRITE_PICKUP_SNOOZEZ_LARGE:
+            return EntityClassKind.SPRITE_PICKUP.size()
+        elif self == EntityClassKind.SELECTABLE_CHARACTER:
+            return EntityClassKind.GAME_OBJECT.size() + 3
+        elif self == EntityClassKind.CHARACTER_SELECTION_CONTROLLER:
+            return 1 + 4 + 9
+        elif self == EntityClassKind.FULL_FRONTEND_OVERLAY:
+            return 1 + 4 + 4
+        elif self == EntityClassKind.GAME_CREDITS_OVERLAY:
+            return 1 + 4 + 5
+        elif self == EntityClassKind.ROOFTOP_SHRINKRAY:
+            return EntityClassKind.ROOFTOP_SATELLITE.size() + 2
+        elif self == EntityClassKind.ROOFTOP_SATELLITE:
+            return EntityClassKind.GAME_OBJECT.size() + 7
+        elif self == EntityClassKind.ROOFTOP_PLANKTON:
+            return EntityClassKind.GIANT_PLANKTON_BOSS.size() + 3
+        elif self == EntityClassKind.ROOFTOP_PROJECTILE:
+            return EntityClassKind.PROJECTILE.size() + 1
+        elif self == EntityClassKind.ROOFTOP_MANAGER:
+            return 1 + 4 + 5
+        elif self == EntityClassKind.ROOFTOP_BREAKABLE_WINDOW:
+            return EntityClassKind.GAME_OBJECT.size()
+        elif self == EntityClassKind.REF_POINT_SPRITE_ASTEROID:
+            return EntityClassKind.REF_POINT_SPRITE.size()
+        elif self == EntityClassKind.MINI_GAME_OVERLAY_SET:
+            return 1 + 4 + 12
+        elif self == EntityClassKind.OVERLAY_FRONTEND_BUBBLE_LABEL:
+            return 1 + 4 + 4
+        elif self == EntityClassKind.PROP_LOCKED_FRONTEND_MENU_BUBBLE:
+            return EntityClassKind.PROP_FRONTEND_MENU_BUBBLE.size() + 7
+        elif self == EntityClassKind.PROP_FRONTEND_MENU_BUBBLE:
+            return 1 + 4 + 27
+        elif self == EntityClassKind.GROUP_FRONTEND_MENU:
+            return 1  + 4 + 24
+        elif self == EntityClassKind.BUBBLE_PARTICLE_SYSTEM:
+            return EntityClassKind.DEFAULT_PARTICLE_SYSTEM.size()
 
 class EntityClass:
     def __init__(self, kind: EntityClassKind, data: list[Token]):
@@ -625,6 +724,12 @@ class EntityClass:
         self.data = data
 
 class ClientKind(StrEnum):
+    C_PROP_ROOFTOP_PLANKTON = 'CPropRoofTopPlankton'
+    C_PROP_ROOFTOP_SHRINKRAY = 'CPropRoofTopShrinkRay'
+    C_PROP_ROOFTOP_PROJECTILE = 'CPropRoofTopProjectile'
+    C_ROOFTOP_BREAKABLE_WINDOW = 'CPropRoofTopBreakableWindow'
+    C_ROOFTOP_SATELLITE = 'CPropRoofTopSatellite'
+    C_REF_POINT_SPRITE = 'CRefPointSprite'
     C_TRIGGER_BOX = 'CTriggerBox'
     C_TRIGGER_BOX_CHECKPOINT = 'CTriggerBoxCheckpoint'
     C_TRIGGER_BOX_CAMERA_HINT = 'CTriggerBoxCameraHint'
@@ -655,6 +760,7 @@ class ClientKind(StrEnum):
     C_PROP_SKYDOME = 'CPropSkyDome'
     C_PROP_MAIN_CHARACTER = 'CPropMainCharacter'
     C_PROP_POWER_GENERATOR = 'CPropPowerGenerator'
+    C_PROP_DRIVING_SPEEDUP_PAD = 'CPropDrivingSpeedupPad'
     PARTICLE_SYTEM = 'CFWorldNodeParticleSystem'
     TRAIL_PARTICLE_SYTEM = 'CFWorldNodeTrailParticleSystem'
     SBPARTICLE_SYTEM = 'CSBDefaultParticleSystem'
@@ -682,6 +788,7 @@ class ClientKind(StrEnum):
     C_FX_SPLINE_TUBE = 'CFxSplineTube'
     C_FX_TARGET_POINT = 'CFxTargetPoint'
     C_FX_TARGET_POINT_LIST = 'CFxTargetPointList'
+    C_FX_SPHERE_TINT_VOLUME = 'CFxSphereTintVolume'
     C_SWIPE_EFFECT = 'CSwipeEffect'
     C_GLOW_EFFECT = 'CGlowEffect'
     C_FIRE_EFFECT = 'CFireEffect'
@@ -693,7 +800,7 @@ class ClientKind(StrEnum):
     C_TEXT_EFFECT = 'CTextEffect'
     C_FLASH_EFFECT = 'CFlashEffect'
     C_CLOUD_PARTICLE_EFFECT = 'CCloudParticleEffect'
-    C_CHAIN_EFFECT = 'CChainffect'
+    C_CHAIN_EFFECT = 'CChainEffect'
     C_ADVANCED_GROUP = 'CAdvancedGroup'
     C_SPLINE_MANAGER = 'CSplineManager'
     C_CONVERSATION = 'CConversation'
@@ -770,7 +877,21 @@ class ClientKind(StrEnum):
     C_PROP_SLOWDOWN_LIFT_PLATFORM = 'CPropSlowdownLiftPlatform'
     C_PROP_FLYING_HOVER_ENEMY = 'CPropFlyingHoverEnemy'
     EMPTY = ''
-    
+    C_DRIVING_CAMERA_NODE = 'CDrivingCameraNode'    
+    C_OVERLAY_COLON_ALIGNED_TIMER = 'COverlayColonAlignedTimer'
+    C_OVERLAY_DRIVING_GENERAL_MESSAGE = 'COverlayDrivingGeneralMessage'
+    C_OVERLAY_DRIVING_START_COUNTDOWN = 'COverlayDrivingStartCountdown'
+    C_PROP_DRIVING_OPPONENT = 'CPropDrivingOpponent'
+    C_PROP_SELECTABLE_CHARACTER = 'CPropSelectableCharacter'
+    C_CHARACTER_SELECTION_CONTROLLER = 'CCharacterSelectionController'
+    C_FULL_FRONTEND_OVERLAY = 'CFullFrontEndOverlay'
+    C_GAME_CREDITS_OVERLAY = 'CGameCreditsOverlay'
+    C_MINI_GAME_OVERLAY_SET = 'CMiniGameOverlaySet'
+    C_OVERLAY_FRONTEND_BUBBLE_LABEL = 'COverlayFrontEndBubbleLabel'
+    C_PROP_LOCKED_FRONTEND_MENU_BUBBLE = 'CPropLockedFrontEndMenuBubble'
+    C_PROP_FRONTEND_MENU_BUBBLE = 'CPropFrontEndMenuBubble'
+    C_GROUP_FRONTEND_MENU = 'CGroupFrontEndMenu'
+    C_FULL_FRONTEND_BUBBLE_PARTICLE = 'CFullFrontEndBubbleParticle'
 
 class Client:
     def __init__(self, kind: ClientKind, data: list[Token]):
@@ -847,12 +968,15 @@ def read_fetm(context, filepath):
             if idx+1 >= len(tokens):
                 break;
             token_2 = tokens[idx+1]
-            if type(token.data) is str and token.data in [e.value for e in NodeKind]:     
+            if type(token.data) is str and token.data in [e.value for e in NodeKind] and type(token_2.data) is str:     
                 kind = NodeKind(token.data)
                 name = str(token_2.data)
                 node = Node(kind, name)
-                nodes.append((node, idx))   
-            idx = idx + 1
+                if name == '<noentclass>':
+                    print(f"{name}")
+                else:
+                    nodes.append((node, idx))    
+            idx = idx + 1  
 
         for ((node, idx), (node2, idx2)) in pairwise(nodes):
             node.data = tokens[idx:idx2] 
@@ -860,8 +984,9 @@ def read_fetm(context, filepath):
         for (node, idx) in nodes:
             if not node.data:
                 node.data = tokens[idx:]
+            if len(node.data) < 3:
+                node.data = tokens[idx:]
              
-            #print("found node: " + str(node.kind))
             obj = bpy.data.objects.new(node.name, None)
             if node.data[2].data == '<noentclass>' and node.data[3].data == '':
                 transform = transform_from_tokens(node.data[4:])
@@ -914,37 +1039,42 @@ def read_fetm(context, filepath):
                             print("client idx mismatch: " + str(node.data[idx:])  + " " + str(node.data[2:]))
                 else:
                     print("Unrecognized entity_class: " + str(node.data[2].data))
-            node_to_obj.append((node.name, obj.name)) 
+                    print(f"{node.name} with kind {node.kind} has {node.data}")
             bpy.context.collection.objects.link(obj)
-        # model_names = []
-        # for (node, idx) in nodes:
-        #     if node.kind == NodeKind.PROP or node.kind == NodeKind.SIMULATION_OBJECT:
-        #             idx = 0 
-        #             for token in node.data:
-        #                 if token.kind == TokenKind.STR:
-        #                     idx = idx + 1
-        #                     if idx == 6 and token.data != '<nomesh>' and token.data != '':
-        #                         model_names.append((node, token.data));
-        #                         idx = 0
-        # errors = []
-        # for (node, name) in model_names:
-        #     print(node.name + " wants " + name) 
-        #     FILEPATH =  "/home/profelements/assets/"
-        #     file = FILEPATH + name + ".obj"
-        #     try:
-        #         bpy.ops.wm.obj_import(filepath=file, up_axis='Z', forward_axis='Y')
-        #         name = node.name
-        #         while idx < len(node_to_obj):
-        #             (node_name, obj_name) = node_to_obj[idx]
-        #             if node_name == name:
-        #                 name = obj_name
-        #                 break;
-        #             idx = idx + 1
-        #         bpy.context.view_layer.objects.active.parent = bpy.context.collection.objects[name]
-        #     except RuntimeError as run: 
-        #         errors.append(file + " is missing")
-        # for error in errors:
-        #     print(error)
+            node_to_obj.append((node.name, obj.name))
+        model_names = []
+        for (node, idx) in nodes:
+            if node.kind == NodeKind.PROP or node.kind == NodeKind.SIMULATION_OBJECT:
+                    idx = 0 
+                    for token in node.data:
+                        if token.kind == TokenKind.STR:
+                            idx = idx + 1
+                            if idx == 6 and token.data != '<nomesh>' and token.data != '':
+                                model_names.append((node, token.data));
+                                idx = 0
+        errors = []
+        for (node, name) in model_names:
+            print(node.name + " wants " + name) 
+            FILEPATH =  "/home/profelements/assets/"
+            file = FILEPATH + name + ".actr.obj"
+            try:
+                bpy.ops.wm.obj_import(filepath=file, up_axis='Z', forward_axis='Y')
+                name = node.name
+                while idx < len(node_to_obj):
+                    (node_name, obj_name) = node_to_obj[idx]
+                    if node_name == name:
+                        name = obj_name
+                        break;
+                    idx = idx + 1
+                try:
+                    obj = bpy.context.collection.objects[name]
+                except KeyError:
+                    obj = bpy.context.collection.objects[name + ".001"]
+                bpy.context.view_layer.objects.active.parent = obj
+            except RuntimeError as run: 
+                errors.append(file + " is missing")
+        for error in errors:
+            print(error)
         return {'FINISHED'}
 
 class Transform:
