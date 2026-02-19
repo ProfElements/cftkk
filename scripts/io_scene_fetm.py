@@ -5,13 +5,15 @@ from itertools import pairwise
 from enum import Enum
 from enum import StrEnum
 from bpy.types import Operator
+from bpy.types import AddonPreferences
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
+from bpy.props import CollectionProperty
 from mathutils import Vector
 from mathutils import Quaternion
 
 bl_info = {
-    'name': 'FETM format',
+    'name': 'FETM format' 
 }
 
 class TokenKind(Enum):
@@ -71,6 +73,15 @@ class NodeKind(StrEnum):
     ADVANCED_NODE = 'advancednode'
     DUMMY = 'dummy'
 
+    def size(self) -> int:
+        if self == NodeKind.PROP:
+            return NodeKind.ADVANCED_NODE.size() + 26
+        elif self == NodeKind.ADVANCED_NODE:
+            return NodeKind.NODE.size() + 19
+        elif self == NodeKind.NODE:
+            return 39
+
+
 class Node:
     def __init__(self, kind: NodeKind, name: str):
         self.kind = kind
@@ -78,8 +89,7 @@ class Node:
         self.entity_class = None
         self.client = None
         self.data = []
-
-
+    
 class EntityClassKind(StrEnum):
     TRIGGER_BOX_CHECKPOINT = 'Trigger Box Checkpoint'
     TRIGGER_BOX = 'Trigger Box'
@@ -899,7 +909,7 @@ class Client:
         self.data = data
 
 PRINT_ENTITY_CLASS = False
-def read_fetm(context, filepath):
+def read_fetm(context, filepath, asset_path):
     with open(filepath, 'rb') as f:
         data = memoryview(f.read())
         tokens = []
@@ -1045,18 +1055,30 @@ def read_fetm(context, filepath):
         model_names = []
         for (node, idx) in nodes:
             if node.kind == NodeKind.PROP or node.kind == NodeKind.SIMULATION_OBJECT:
-                    idx = 0 
-                    for token in node.data:
-                        if token.kind == TokenKind.STR:
-                            idx = idx + 1
-                            if idx == 6 and token.data != '<nomesh>' and token.data != '':
-                                model_names.append((node, token.data));
-                                idx = 0
+                if node.kind == NodeKind.PROP:
+                    name = node.data[len(node.data)-19].data
+                    if type(name) is str:
+                        model_names.append((node, name))
+                    elif type(node.data[len(node.data)-20].data) is str:
+                        name2 = node.data[len(node.data)-20].data
+                        model_names.append((node, name2))
+                    else:
+                        print(f"{node.name} has funky data {node.data}")
+                else:
+                    idx = len(node.data)-125;
+                    name = node.data[idx].data
+                    while type(name) is not str:
+                        name = node.data[idx].data
+                        idx = idx + 1
+                    if name != '<nomesh>' and name != '<noentclass>' and name != '':
+                        model_names.append((node, name))
+                    else:
+                        print(f"{node.name} has funky data {node.data}")
+        
         errors = []
         for (node, name) in model_names:
-            print(node.name + " wants " + name) 
-            FILEPATH =  "/home/profelements/assets/"
-            file = FILEPATH + name + ".actr.obj"
+            print(node.name + " wants " + name)
+            file = asset_path + name + ".actr.obj"
             try:
                 bpy.ops.wm.obj_import(filepath=file, up_axis='Z', forward_axis='Y')
                 name = node.name
@@ -1108,20 +1130,40 @@ def bounds_from_tokens(tokens: list[Token]):
     max = Vector((tokens[3].data, tokens[4].data, tokens[5].data))
     #print(str(min) + " to " + str(max))
     return Bounds(min, max)
+
 class FETMImporter(Operator, ImportHelper):
     bl_idname = "import_scene.fetm"
     bl_label = "Import Blitz Games .fet/.fetm"
     
     filename_ext = ".fetm"
     
-    filter_glob = StringProperty(
-        default="*.fetm",
+    filter_glob: StringProperty(
+        default="*.fetm;",
         options={'HIDDEN'},
         maxlen=255,
     )
     
+    asset_path: StringProperty(
+        name="Asset Path",
+        description="Path to read assets from",
+    )
+    
+    def draw(self, context):
+        operator = self
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False 
+        header, body = layout.panel("FETM_main", default_closed=False)
+        header.label(text = "Main")
+        if body:
+            body.prop(self, 'asset_path')
+
     def execute(self, context):
-        return read_fetm(context, self.filepath)
+        return read_fetm(context, self.filepath, self.asset_path)
+    
+    def invoke(self, context, event):
+        return ImportHelper.invoke_popup(self, context)
+
 
 def menu_func_import(self, context):
     self.layout.operator(FETMImporter.bl_idname, text=FETMImporter.bl_label);
