@@ -1,6 +1,11 @@
+use std::env;
+
 fn main() {
+    let args: Vec<_> = env::args().collect();
+
     let table = init_crc_table();
-    println!("{:x}", checksum(&table, b"hotrod_springy_t"));
+    let val = checksum(&table, args[1].as_bytes());
+    println!("{:X}, {}", val, val);
 }
 
 const fn init_crc_table() -> [u32; 256] {
